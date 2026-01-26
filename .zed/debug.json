@@ -1,0 +1,10 @@
+[
+  {
+    "label": "Debug Actix Web daemon",
+    "adapter": "CodeLLDB",
+    "build": "cargo build",
+    "program": "$ZED_WORKTREE_ROOT/target/debug/wgpaper-daemon-actix-web",
+    "request": "launch",
+    "cwd": "$ZED_WORKTREE_ROOT",
+  },
+]
