@@ -21,7 +21,7 @@ use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
 	globals::{GlobalList, registry_queue_init},
-	protocol::{wl_output::WlOutput, wl_surface},
+	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 
 pub fn start() -> anyhow::Result<()> {
@@ -39,6 +39,7 @@ pub fn start() -> anyhow::Result<()> {
 }
 
 struct OutputStateEntry {
+	output: WlOutput,
 	layer: LayerSurface,
 	renderer: Option<Box<dyn Renderer>>,
 	width: u32,
@@ -89,7 +90,7 @@ pub struct App {
 	shm: Shm,
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
-	outputs: HashMap<WlOutput, OutputStateEntry>,
+	outputs: HashMap<WlSurface, OutputStateEntry>,
 	pub exit: bool,
 }
 
@@ -120,7 +121,6 @@ impl App {
 				.layer
 				.wl_surface()
 				.frame(qh, entry.layer.wl_surface().clone());
-
 			entry.render();
 		}
 	}
@@ -131,17 +131,20 @@ impl CompositorHandler for App {
 		&mut self,
 		_conn: &Connection,
 		qh: &QueueHandle<Self>,
-		_surface: &wl_surface::WlSurface,
+		surface: &WlSurface,
 		_time: u32,
 	) {
-		self.render_all(qh);
+		if let Some(output) = self.outputs.get_mut(surface) {
+			surface.frame(qh, surface.clone());
+			output.render();
+		}
 	}
 
 	fn scale_factor_changed(
 		&mut self,
 		_conn: &Connection,
 		_qh: &QueueHandle<Self>,
-		_surface: &wl_surface::WlSurface,
+		_surface: &WlSurface,
 		_new_factor: i32,
 	) {
 	}
@@ -150,7 +153,7 @@ impl CompositorHandler for App {
 		&mut self,
 		_conn: &Connection,
 		_qh: &QueueHandle<Self>,
-		_surface: &wl_surface::WlSurface,
+		_surface: &WlSurface,
 		_new_transform: wayland_client::protocol::wl_output::Transform,
 	) {
 	}
@@ -159,7 +162,7 @@ impl CompositorHandler for App {
 		&mut self,
 		_conn: &Connection,
 		_qh: &QueueHandle<Self>,
-		_surface: &wl_surface::WlSurface,
+		_surface: &WlSurface,
 		_output: &wayland_client::protocol::wl_output::WlOutput,
 	) {
 	}
@@ -168,7 +171,7 @@ impl CompositorHandler for App {
 		&mut self,
 		_conn: &Connection,
 		_qh: &QueueHandle<Self>,
-		_surface: &wl_surface::WlSurface,
+		_surface: &WlSurface,
 		_output: &wayland_client::protocol::wl_output::WlOutput,
 	) {
 	}
@@ -183,7 +186,7 @@ impl OutputHandler for App {
 		let surface = self.compositor_state.create_surface(qh);
 		let layer = self.layer_shell.create_layer_surface(
 			qh,
-			surface,
+			surface.clone(),
 			Layer::Background,
 			Some("multi_output_layer"),
 			Some(&output),
@@ -196,8 +199,9 @@ impl OutputHandler for App {
 		layer.commit();
 
 		self.outputs.insert(
-			output,
+			surface,
 			OutputStateEntry {
+				output,
 				layer,
 				renderer: None,
 				width: 0,
@@ -208,8 +212,7 @@ impl OutputHandler for App {
 
 	fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
 
-	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, output: WlOutput) {
-		self.outputs.remove(&output);
+	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
 	}
 }
 
