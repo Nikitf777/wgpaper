@@ -213,6 +213,13 @@ impl OutputHandler for App {
 	fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
 
 	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
+		if let Some((_, _)) = self
+			.outputs
+			.extract_if(|_, entry| entry.output == _output)
+			.next()
+		{
+			// TODO: log that the output was removed.
+		}
 	}
 }
 
