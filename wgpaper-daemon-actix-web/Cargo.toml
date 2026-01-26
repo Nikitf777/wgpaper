@@ -1,0 +1,8 @@
+[package]
+name = "wgpaper-daemon-actix-web"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lib-wgpaper-daemon = { path = "../lib-wgpaper-daemon" }
+anyhow = "1.0.100"
