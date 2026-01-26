@@ -1,6 +1,6 @@
+use crate::transition::TransitionProgress;
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
-
 pub mod wgpu_renderer;
 
 pub trait Renderer {
@@ -13,11 +13,7 @@ pub trait Renderer {
 	where
 		Self: Sized;
 
-	fn render(
-		&mut self,
-		transition_progress: f32,
-		transition_progress_clamped: f32,
-	) -> anyhow::Result<()>;
+	fn render(&mut self, progress: TransitionProgress) -> anyhow::Result<()>;
 
 	fn resize(&mut self, width: u32, height: u32) -> anyhow::Result<()>;
 }

@@ -1,4 +1,7 @@
-use crate::renderer::{Renderer, wgpu_renderer::WgpuRenderer};
+use crate::{
+	renderer::{Renderer, wgpu_renderer::WgpuRenderer},
+	transition::{Transition, TransitionProgress},
+};
 use anyhow::Context;
 use smithay_client_toolkit::{
 	compositor::{CompositorHandler, CompositorState},
@@ -16,7 +19,7 @@ use smithay_client_toolkit::{
 	},
 	shm::{Shm, ShmHandler},
 };
-use std::{collections::HashMap, num::NonZeroU32};
+use std::{collections::HashMap, num::NonZeroU32, time::Instant};
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
@@ -44,16 +47,23 @@ struct OutputStateEntry {
 	renderer: Option<Box<dyn Renderer>>,
 	width: u32,
 	height: u32,
+	transitioning: bool,
+	transition_progress: TransitionProgress,
 }
 
 impl OutputStateEntry {
-	fn render(&mut self) {
+	fn render(&mut self, progress: TransitionProgress) {
+		if self.transition_progress.is_finished() {
+			self.transitioning = false;
+			return;
+		}
+
 		if self.width == 0 || self.height == 0 {
 			return;
 		}
 
 		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.render(0.0, 0.0) {
+			if let Err(e) = renderer.render(progress) {
 				eprintln!("Rendering error: {}", e);
 			}
 		}
@@ -81,6 +91,11 @@ impl OutputStateEntry {
 			}
 		}
 	}
+
+	fn start_transitioning(&mut self) {
+		self.transition_progress = TransitionProgress::default();
+		self.transitioning = true;
+	}
 }
 
 pub struct App {
@@ -92,6 +107,8 @@ pub struct App {
 	layer_shell: LayerShell,
 	outputs: HashMap<WlSurface, OutputStateEntry>,
 	pub exit: bool,
+	transition_begin: Instant,
+	transition: Transition,
 }
 
 impl App {
@@ -112,6 +129,8 @@ impl App {
 			layer_shell,
 			outputs: HashMap::new(),
 			exit: false,
+			transition_begin: Instant::now(),
+			transition: Transition::new(1.0, (0.54, 0.0, 0.34, 0.99)),
 		})
 	}
 
@@ -121,7 +140,16 @@ impl App {
 				.layer
 				.wl_surface()
 				.frame(qh, entry.layer.wl_surface().clone());
-			entry.render();
+			entry.render(TransitionProgress {
+				progress: 0.0,
+				progress_clamped: 0.0,
+			});
+		}
+	}
+
+	pub fn start_transition(&mut self) {
+		for (_, entry) in self.outputs.iter_mut() {
+			entry.start_transitioning();
 		}
 	}
 }
@@ -136,7 +164,12 @@ impl CompositorHandler for App {
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
 			surface.frame(qh, surface.clone());
-			output.render();
+			if output.transitioning {
+				output.render(
+					self.transition
+						.advance_to(Instant::now().duration_since(self.transition_begin)),
+				);
+			}
 		}
 	}
 
@@ -206,6 +239,8 @@ impl OutputHandler for App {
 				renderer: None,
 				width: 0,
 				height: 0,
+				transitioning: false,
+				transition_progress: TransitionProgress::default(),
 			},
 		);
 	}

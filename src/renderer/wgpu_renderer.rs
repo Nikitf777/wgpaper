@@ -1,5 +1,5 @@
 use super::Renderer;
-use crate::texture::Texture;
+use crate::{texture::Texture, transition::TransitionProgress};
 use anyhow::Context;
 use pollster::FutureExt;
 use raw_window_handle::{
@@ -225,11 +225,7 @@ impl Renderer for WgpuRenderer {
 		})
 	}
 
-	fn render(
-		&mut self,
-		transition_progress: f32,
-		transition_progress_clamped: f32,
-	) -> anyhow::Result<()> {
+	fn render(&mut self, progress: TransitionProgress) -> anyhow::Result<()> {
 		let frame = match self.surface.get_current_texture() {
 			Ok(frame) => frame,
 			Err(SurfaceError::Outdated | SurfaceError::Lost) => {
@@ -250,7 +246,7 @@ impl Renderer for WgpuRenderer {
 			});
 
 		let uniforms =
-			TransitionProgressUniforms::new(transition_progress, transition_progress_clamped);
+			TransitionProgressUniforms::new(progress.progress, progress.progress_clamped);
 		self.queue.write_buffer(
 			&self.transition_progress_uniform_buffer,
 			0,
