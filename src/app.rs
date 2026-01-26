@@ -53,7 +53,7 @@ impl OutputStateEntry {
 		}
 
 		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.render(self.width, self.height) {
+			if let Err(e) = renderer.render(0.0, 0.0) {
 				eprintln!("Rendering error: {}", e);
 			}
 		}

@@ -13,7 +13,11 @@ pub trait Renderer {
 	where
 		Self: Sized;
 
-	fn render(&mut self, width: u32, height: u32) -> anyhow::Result<()>;
+	fn render(
+		&mut self,
+		transition_progress: f32,
+		transition_progress_clamped: f32,
+	) -> anyhow::Result<()>;
 
 	fn resize(&mut self, width: u32, height: u32) -> anyhow::Result<()>;
 }

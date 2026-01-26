@@ -6,9 +6,27 @@ use raw_window_handle::{
 	RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
 };
 use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
-use std::{mem::size_of, ptr::NonNull};
+use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
-use wgpu::SurfaceError;
+use wgpu::{Buffer, SurfaceError};
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct TransitionProgressUniforms {
+	transition_progress: f32,
+	transition_progress_clamped: f32,
+	_padding: [u8; 248],
+}
+
+impl TransitionProgressUniforms {
+	fn new(v1: f32, v2: f32) -> Self {
+		Self {
+			transition_progress: v1,
+			transition_progress_clamped: v2,
+			_padding: [0u8; 248],
+		}
+	}
+}
 
 pub struct WgpuRenderer {
 	device: wgpu::Device,
@@ -18,7 +36,8 @@ pub struct WgpuRenderer {
 	render_pipeline: wgpu::RenderPipeline,
 	diffuse_bind_group: wgpu::BindGroup,
 	_diffuse_texture: Texture,
-	_transition_progress_bind_group: wgpu::BindGroup,
+	transition_progress_bind_group: wgpu::BindGroup,
+	transition_progress_uniform_buffer: Buffer,
 }
 
 impl Renderer for WgpuRenderer {
@@ -112,32 +131,33 @@ impl Renderer for WgpuRenderer {
 			label: Some("diffuse_bind_group"),
 		});
 
+		let transition_progress_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Frame Uniforms"),
+			size: std::mem::size_of::<TransitionProgressUniforms>() as wgpu::BufferAddress,
+			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		});
+
 		let transition_progress_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				entries: &[wgpu::BindGroupLayoutEntry {
 					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
+					visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
 					ty: wgpu::BindingType::Buffer {
 						ty: wgpu::BufferBindingType::Uniform,
 						has_dynamic_offset: false,
-						min_binding_size: None,
+						min_binding_size: wgpu::BufferSize::new(256),
 					},
 					count: None,
 				}],
-				label: Some("transition_progress_bind_group_layout"),
+				label: None,
 			});
 
-		let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Frame Uniforms"),
-			size: size_of::<f32>() as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
 		let transition_progress_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
 			layout: &transition_progress_bind_group_layout,
 			entries: &[wgpu::BindGroupEntry {
 				binding: 0,
-				resource: uniform_buffer.as_entire_binding(),
+				resource: transition_progress_uniform_buffer.as_entire_binding(),
 			}],
 			label: None,
 		});
@@ -200,11 +220,16 @@ impl Renderer for WgpuRenderer {
 			render_pipeline,
 			diffuse_bind_group,
 			_diffuse_texture: diffuse_texture,
-			_transition_progress_bind_group: transition_progress_bind_group,
+			transition_progress_bind_group,
+			transition_progress_uniform_buffer,
 		})
 	}
 
-	fn render(&mut self, _width: u32, _height: u32) -> anyhow::Result<()> {
+	fn render(
+		&mut self,
+		transition_progress: f32,
+		transition_progress_clamped: f32,
+	) -> anyhow::Result<()> {
 		let frame = match self.surface.get_current_texture() {
 			Ok(frame) => frame,
 			Err(SurfaceError::Outdated | SurfaceError::Lost) => {
@@ -223,6 +248,14 @@ impl Renderer for WgpuRenderer {
 			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
 				label: Some("Render Encoder"),
 			});
+
+		let uniforms =
+			TransitionProgressUniforms::new(transition_progress, transition_progress_clamped);
+		self.queue.write_buffer(
+			&self.transition_progress_uniform_buffer,
+			0,
+			bytemuck::bytes_of(&uniforms),
+		);
 
 		{
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -249,6 +282,7 @@ impl Renderer for WgpuRenderer {
 
 			render_pass.set_pipeline(&self.render_pipeline);
 			render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+			render_pass.set_bind_group(1, &self.transition_progress_bind_group, &[]);
 			render_pass.draw(0..3, 0..1);
 		}
 
