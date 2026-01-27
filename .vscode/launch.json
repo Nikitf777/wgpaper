@@ -1,0 +1,44 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug unit tests in library 'lib_wgpaper_daemon'",
+            "type": "lldb",
+            "request": "launch",
+            "console": "internalConsole",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--package=lib-wgpaper-daemon"
+                ]
+            }
+        },
+        {
+            "name": "Debug executable 'wgpaper-daemon-actix-web'",
+            "type": "lldb",
+            "request": "launch",
+            "console": "internalConsole",
+            "cargo": {
+                "args": [
+                    "run",
+                    "--bin=wgpaper-daemon-actix-web",
+                    "--package=wgpaper-daemon-actix-web"
+                ]
+            },
+            "args": []
+        },
+        {
+            "name": "Debug unit tests in executable 'wgpaper-daemon-actix-web'",
+            "type": "lldb",
+            "request": "launch",
+            "console": "internalConsole",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--bin=wgpaper-daemon-actix-web",
+                    "--package=wgpaper-daemon-actix-web"
+                ]
+            }
+        }
+    ]
+}
