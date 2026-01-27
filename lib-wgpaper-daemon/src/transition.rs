@@ -1,15 +1,26 @@
 use keyframe::{AnimationSequence, functions::BezierCurve, keyframes, mint::Vector2};
 use std::time::Duration;
 
-#[derive(Default)]
 pub struct TransitionProgress {
 	pub progress: f32,
 	pub progress_clamped: f32,
 }
 
 impl TransitionProgress {
+	pub fn reset() -> Self {
+		Self {
+			progress: 0.0,
+			progress_clamped: 0.0,
+		}
+	}
+	pub fn finished() -> Self {
+		Self {
+			progress: 1.0,
+			progress_clamped: 1.0,
+		}
+	}
 	pub fn is_finished(&self) -> bool {
-		self.progress == 1.0 && self.progress_clamped == 1.0
+		self.progress == 1.0 && self.progress_clamped >= 1.0
 	}
 }
 

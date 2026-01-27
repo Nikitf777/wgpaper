@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 lib-wgpaper-daemon = { path = "../lib-wgpaper-daemon" }
 anyhow = "1.0.100"
+calloop = "0.14.3"
+actix-web = "4.12.1"

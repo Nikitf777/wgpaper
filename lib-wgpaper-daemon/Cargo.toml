@@ -13,6 +13,7 @@ keyframe = "1.1.1"
 log = "0.4.29"
 pollster = "0.4.0"
 raw-window-handle = "0.6.2"
+serde = { version = "1.0.228", features = ["derive"] }
 smithay-client-toolkit = "0.20.0"
 wayland-backend = { version = "0.3.12", features = ["client_system"] }
 wayland-client = "0.31.12"

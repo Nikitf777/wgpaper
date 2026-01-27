@@ -3,11 +3,13 @@ use crate::{
 	transition::{Transition, TransitionProgress},
 };
 use anyhow::Context;
+use calloop::{EventLoop, channel::Channel};
 use smithay_client_toolkit::{
 	compositor::{CompositorHandler, CompositorState},
 	delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
 	delegate_shm,
 	output::{OutputHandler, OutputState},
+	reexports::calloop_wayland_source::WaylandSource,
 	registry::{ProvidesRegistryState, RegistryState},
 	registry_handlers,
 	seat::{Capability, SeatHandler, SeatState},
@@ -27,16 +29,30 @@ use wayland_client::{
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 
-pub fn start() -> anyhow::Result<()> {
+#[derive(serde::Deserialize)]
+pub struct Commands {}
+
+pub fn start(channel: Channel<Commands>) -> anyhow::Result<()> {
 	let conn = Connection::connect_to_env()?;
-	let (globals, mut event_queue) = registry_queue_init(&conn)?;
+	let (globals, event_queue) = registry_queue_init(&conn)?;
 	let qh = event_queue.handle();
+
+	let mut event_loop = EventLoop::<App>::try_new().unwrap();
+
+	let loop_handle = event_loop.handle();
+	loop_handle
+		.insert_source(channel, |_, _, app| {
+			app.start_transition();
+		})
+		.unwrap();
+
+	WaylandSource::new(conn, event_queue)
+		.insert(loop_handle)
+		.unwrap();
 
 	let mut app = App::new(globals, qh)?;
 
-	while !app.exit {
-		event_queue.blocking_dispatch(&mut app)?;
-	}
+	event_loop.run(None, &mut app, |_| {}).unwrap();
 
 	Ok(())
 }
@@ -47,17 +63,11 @@ struct OutputStateEntry {
 	renderer: Option<Box<dyn Renderer>>,
 	width: u32,
 	height: u32,
-	transitioning: bool,
 	transition_progress: TransitionProgress,
 }
 
 impl OutputStateEntry {
 	fn render(&mut self, progress: TransitionProgress) {
-		if self.transition_progress.is_finished() {
-			self.transitioning = false;
-			return;
-		}
-
 		if self.width == 0 || self.height == 0 {
 			return;
 		}
@@ -92,9 +102,12 @@ impl OutputStateEntry {
 		}
 	}
 
-	fn start_transitioning(&mut self) {
-		self.transition_progress = TransitionProgress::default();
-		self.transitioning = true;
+	fn start_transition(&mut self) {
+		self.transition_progress = TransitionProgress::reset();
+	}
+
+	fn is_transitionint(&self) -> bool {
+		!self.transition_progress.is_finished()
 	}
 }
 
@@ -107,6 +120,7 @@ pub struct App {
 	layer_shell: LayerShell,
 	outputs: HashMap<WlSurface, OutputStateEntry>,
 	pub exit: bool,
+	qh: QueueHandle<App>,
 	transition_begin: Instant,
 	transition: Transition,
 }
@@ -129,6 +143,7 @@ impl App {
 			layer_shell,
 			outputs: HashMap::new(),
 			exit: false,
+			qh,
 			transition_begin: Instant::now(),
 			transition: Transition::new(1.0, (0.54, 0.0, 0.34, 0.99)),
 		})
@@ -140,16 +155,16 @@ impl App {
 				.layer
 				.wl_surface()
 				.frame(qh, entry.layer.wl_surface().clone());
-			entry.render(TransitionProgress {
-				progress: 0.0,
-				progress_clamped: 0.0,
-			});
+			entry.render(TransitionProgress::reset());
 		}
 	}
 
 	pub fn start_transition(&mut self) {
-		for (_, entry) in self.outputs.iter_mut() {
-			entry.start_transitioning();
+		self.transition_begin = Instant::now();
+		for (surface, entry) in self.outputs.iter_mut() {
+			entry.start_transition();
+			surface.frame(&self.qh, surface.clone());
+			entry.render(TransitionProgress::reset());
 		}
 	}
 }
@@ -163,13 +178,16 @@ impl CompositorHandler for App {
 		_time: u32,
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
-			surface.frame(qh, surface.clone());
-			if output.transitioning {
-				output.render(
-					self.transition
-						.advance_to(Instant::now().duration_since(self.transition_begin)),
-				);
+			if !output.is_transitionint() {
+				return;
 			}
+			let progress = self
+				.transition
+				.advance_to(Instant::now().duration_since(self.transition_begin));
+			if !progress.is_finished() {
+				surface.frame(qh, surface.clone());
+			}
+			output.render(progress);
 		}
 	}
 
@@ -239,8 +257,7 @@ impl OutputHandler for App {
 				renderer: None,
 				width: 0,
 				height: 0,
-				transitioning: false,
-				transition_progress: TransitionProgress::default(),
+				transition_progress: TransitionProgress::finished(),
 			},
 		);
 	}

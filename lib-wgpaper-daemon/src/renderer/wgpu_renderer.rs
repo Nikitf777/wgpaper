@@ -89,9 +89,12 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
-		let diffuse_bytes = include_bytes!("happy-tree.png");
-		let diffuse_texture =
-			Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png")?;
+		let diffuse_bytes_1 = include_bytes!("wallpaper1.jpg");
+		let diffuse_texture_1 =
+			Texture::from_bytes(&device, &queue, diffuse_bytes_1, "wallpaper1.jpg")?;
+		let diffuse_bytes_2 = include_bytes!("wallpaper2.jpg");
+		let diffuse_texture_2 =
+			Texture::from_bytes(&device, &queue, diffuse_bytes_2, "wallpaper2.jpg")?;
 
 		let texture_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -109,6 +112,16 @@ impl Renderer for WgpuRenderer {
 					wgpu::BindGroupLayoutEntry {
 						binding: 1,
 						visibility: wgpu::ShaderStages::FRAGMENT,
+						ty: wgpu::BindingType::Texture {
+							multisampled: false,
+							sample_type: wgpu::TextureSampleType::Float { filterable: true },
+							view_dimension: wgpu::TextureViewDimension::D2,
+						},
+						count: None,
+					},
+					wgpu::BindGroupLayoutEntry {
+						binding: 2,
+						visibility: wgpu::ShaderStages::FRAGMENT,
 						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
 						count: None,
 					},
@@ -121,11 +134,15 @@ impl Renderer for WgpuRenderer {
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+					resource: wgpu::BindingResource::TextureView(&diffuse_texture_1.view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 1,
-					resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+					resource: wgpu::BindingResource::TextureView(&diffuse_texture_2.view),
+				},
+				wgpu::BindGroupEntry {
+					binding: 2,
+					resource: wgpu::BindingResource::Sampler(&diffuse_texture_1.sampler),
 				},
 			],
 			label: Some("diffuse_bind_group"),
@@ -170,7 +187,10 @@ impl Renderer for WgpuRenderer {
 		let render_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 				label: Some("Render Pipeline Layout"),
-				bind_group_layouts: &[&texture_bind_group_layout],
+				bind_group_layouts: &[
+					&texture_bind_group_layout,
+					&transition_progress_bind_group_layout,
+				],
 				immediate_size: 0,
 			});
 
@@ -219,7 +239,7 @@ impl Renderer for WgpuRenderer {
 			config,
 			render_pipeline,
 			diffuse_bind_group,
-			_diffuse_texture: diffuse_texture,
+			_diffuse_texture: diffuse_texture_1,
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
 		})
