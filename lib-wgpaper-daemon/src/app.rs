@@ -106,7 +106,7 @@ impl OutputStateEntry {
 		self.transition_progress = TransitionProgress::reset();
 	}
 
-	fn is_transitionint(&self) -> bool {
+	fn is_transitioning(&self) -> bool {
 		!self.transition_progress.is_finished()
 	}
 }
@@ -178,7 +178,7 @@ impl CompositorHandler for App {
 		_time: u32,
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
-			if !output.is_transitionint() {
+			if !output.is_transitioning() {
 				return;
 			}
 			let progress = self
