@@ -168,7 +168,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let transition_progress_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Frame Uniforms"),
+			label: Some("Transition Progress Uniforms"),
 			size: std::mem::size_of::<TransitionProgressUniforms>() as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
@@ -178,7 +178,7 @@ impl Renderer for WgpuRenderer {
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				entries: &[wgpu::BindGroupLayoutEntry {
 					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+					visibility: wgpu::ShaderStages::FRAGMENT,
 					ty: wgpu::BindingType::Buffer {
 						ty: wgpu::BufferBindingType::Uniform,
 						has_dynamic_offset: false,
