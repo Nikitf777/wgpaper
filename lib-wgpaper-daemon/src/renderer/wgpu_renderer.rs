@@ -179,9 +179,13 @@ impl Renderer for WgpuRenderer {
 			label: None,
 		});
 
-		let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+		let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("Shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+			source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
+		});
+		let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+			label: Some("Shader"),
+			source: wgpu::ShaderSource::Wgsl(include_str!("fragment.wgsl").into()),
 		});
 
 		let render_pipeline_layout =
@@ -198,13 +202,13 @@ impl Renderer for WgpuRenderer {
 			label: Some("Render Pipeline"),
 			layout: Some(&render_pipeline_layout),
 			vertex: wgpu::VertexState {
-				module: &shader,
+				module: &vertex_shader,
 				entry_point: Some("vs_main"),
 				buffers: &[],
 				compilation_options: Default::default(),
 			},
 			fragment: Some(wgpu::FragmentState {
-				module: &shader,
+				module: &fragment_shader,
 				entry_point: Some("fs_main"),
 				targets: &[Some(wgpu::ColorTargetState {
 					format: surface_format,
