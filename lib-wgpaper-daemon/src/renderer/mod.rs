@@ -13,7 +13,11 @@ pub trait Renderer {
 	where
 		Self: Sized;
 
-	fn render(&mut self, progress: TransitionProgress) -> anyhow::Result<()>;
+	fn render(&mut self) -> anyhow::Result<()>;
 
 	fn resize(&mut self, width: u32, height: u32) -> anyhow::Result<()>;
+
+	fn get_transition_progress(&self) -> TransitionProgress;
+
+	fn set_transition_progress(&mut self, progress: TransitionProgress);
 }

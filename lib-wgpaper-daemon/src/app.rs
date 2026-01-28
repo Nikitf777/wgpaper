@@ -63,17 +63,16 @@ struct OutputStateEntry {
 	renderer: Option<Box<dyn Renderer>>,
 	width: u32,
 	height: u32,
-	transition_progress: TransitionProgress,
 }
 
 impl OutputStateEntry {
-	fn render(&mut self, progress: TransitionProgress) {
+	fn render(&mut self) {
 		if self.width == 0 || self.height == 0 {
 			return;
 		}
 
 		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.render(progress) {
+			if let Err(e) = renderer.render() {
 				eprintln!("Rendering error: {}", e);
 			}
 		}
@@ -102,12 +101,18 @@ impl OutputStateEntry {
 		}
 	}
 
-	fn start_transition(&mut self) {
-		self.transition_progress = TransitionProgress::reset();
+	fn is_transitioning(&self) -> bool {
+		if let Some(renderer) = &self.renderer {
+			!renderer.get_transition_progress().is_finished()
+		} else {
+			false
+		}
 	}
 
-	fn is_transitioning(&self) -> bool {
-		!self.transition_progress.is_finished()
+	fn set_transition_progress(&mut self, progress: TransitionProgress) {
+		if let Some(renderer) = self.renderer.as_mut() {
+			renderer.set_transition_progress(progress);
+		}
 	}
 }
 
@@ -155,16 +160,16 @@ impl App {
 				.layer
 				.wl_surface()
 				.frame(qh, entry.layer.wl_surface().clone());
-			entry.render(TransitionProgress::reset());
+			entry.render();
 		}
 	}
 
 	pub fn start_transition(&mut self) {
 		self.transition_begin = Instant::now();
 		for (surface, entry) in self.outputs.iter_mut() {
-			entry.start_transition();
+			entry.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
-			entry.render(TransitionProgress::reset());
+			entry.render();
 		}
 	}
 }
@@ -187,7 +192,8 @@ impl CompositorHandler for App {
 			if !progress.is_finished() {
 				surface.frame(qh, surface.clone());
 			}
-			output.render(progress);
+			output.set_transition_progress(progress);
+			output.render();
 		}
 	}
 
@@ -257,7 +263,6 @@ impl OutputHandler for App {
 				renderer: None,
 				width: 0,
 				height: 0,
-				transition_progress: TransitionProgress::finished(),
 			},
 		);
 	}
