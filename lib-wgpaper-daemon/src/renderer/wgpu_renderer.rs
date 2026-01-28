@@ -34,7 +34,7 @@ pub struct WgpuRenderer {
 	surface: wgpu::Surface<'static>,
 	config: wgpu::SurfaceConfiguration,
 	render_pipeline: wgpu::RenderPipeline,
-	diffuse_bind_group: wgpu::BindGroup,
+	texture_bind_group: wgpu::BindGroup,
 	_diffuse_texture: Texture,
 	transition_progress_bind_group: wgpu::BindGroup,
 	transition_progress_uniform_buffer: Buffer,
@@ -250,7 +250,7 @@ impl Renderer for WgpuRenderer {
 			surface,
 			config,
 			render_pipeline,
-			diffuse_bind_group: texture_bind_group,
+			texture_bind_group,
 			_diffuse_texture: texture_1,
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
@@ -309,7 +309,7 @@ impl Renderer for WgpuRenderer {
 			});
 
 			render_pass.set_pipeline(&self.render_pipeline);
-			render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+			render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
 			render_pass.set_bind_group(1, &self.transition_progress_bind_group, &[]);
 			render_pass.draw(0..3, 0..1);
 		}
