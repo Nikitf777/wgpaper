@@ -30,6 +30,13 @@ impl TransitionProgressUniforms {
 	fn from(progress: TransitionProgress) -> Self {
 		Self::new(progress.progress, progress.progress_clamped)
 	}
+
+	fn to(&self) -> TransitionProgress {
+		TransitionProgress {
+			progress: self.progress,
+			progress_clamped: self.progress_clamped,
+		}
+	}
 }
 
 pub struct WgpuRenderer {
@@ -39,6 +46,7 @@ pub struct WgpuRenderer {
 	config: wgpu::SurfaceConfiguration,
 	render_pipeline: wgpu::RenderPipeline,
 	texture_bind_group: wgpu::BindGroup,
+	transition_progress: TransitionProgressUniforms,
 	transition_progress_bind_group: wgpu::BindGroup,
 	transition_progress_uniform_buffer: Buffer,
 }
@@ -254,12 +262,13 @@ impl Renderer for WgpuRenderer {
 			config,
 			render_pipeline,
 			texture_bind_group,
+			transition_progress: TransitionProgressUniforms::from(TransitionProgress::finished()),
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
 		})
 	}
 
-	fn render(&mut self, progress: TransitionProgress) -> anyhow::Result<()> {
+	fn render(&mut self) -> anyhow::Result<()> {
 		let frame = match self.surface.get_current_texture() {
 			Ok(frame) => frame,
 			Err(SurfaceError::Outdated | SurfaceError::Lost) => {
@@ -278,13 +287,6 @@ impl Renderer for WgpuRenderer {
 			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
 				label: Some("Render Encoder"),
 			});
-
-		let uniforms = TransitionProgressUniforms::from(progress);
-		self.queue.write_buffer(
-			&self.transition_progress_uniform_buffer,
-			0,
-			bytemuck::bytes_of(&uniforms),
-		);
 
 		{
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -325,5 +327,19 @@ impl Renderer for WgpuRenderer {
 		self.config.height = height;
 		self.surface.configure(&self.device, &self.config);
 		Ok(())
+	}
+
+	fn get_transition_progress(&self) -> TransitionProgress {
+		self.transition_progress.to()
+	}
+
+	fn set_transition_progress(&mut self, progress: TransitionProgress) {
+		let progress = TransitionProgressUniforms::from(progress);
+		self.transition_progress = progress;
+		self.queue.write_buffer(
+			&self.transition_progress_uniform_buffer,
+			0,
+			bytemuck::bytes_of(&progress),
+		);
 	}
 }
