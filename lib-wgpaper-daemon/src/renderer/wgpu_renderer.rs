@@ -13,16 +13,16 @@ use wgpu::{Buffer, SurfaceError};
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct TransitionProgressUniforms {
-	transition_progress: f32,
-	transition_progress_clamped: f32,
+	progress: f32,
+	progress_clamped: f32,
 	_padding: [u8; 248],
 }
 
 impl TransitionProgressUniforms {
 	fn new(v1: f32, v2: f32) -> Self {
 		Self {
-			transition_progress: v1,
-			transition_progress_clamped: v2,
+			progress: v1,
+			progress_clamped: v2,
 			_padding: [0u8; 248],
 		}
 	}
