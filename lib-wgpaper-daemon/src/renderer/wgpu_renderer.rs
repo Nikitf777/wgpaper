@@ -26,6 +26,10 @@ impl TransitionProgressUniforms {
 			_padding: [0u8; 248],
 		}
 	}
+
+	fn from(progress: TransitionProgress) -> Self {
+		Self::new(progress.progress, progress.progress_clamped)
+	}
 }
 
 pub struct WgpuRenderer {
@@ -275,8 +279,7 @@ impl Renderer for WgpuRenderer {
 				label: Some("Render Encoder"),
 			});
 
-		let uniforms =
-			TransitionProgressUniforms::new(progress.progress, progress.progress_clamped);
+		let uniforms = TransitionProgressUniforms::from(progress);
 		self.queue.write_buffer(
 			&self.transition_progress_uniform_buffer,
 			0,
