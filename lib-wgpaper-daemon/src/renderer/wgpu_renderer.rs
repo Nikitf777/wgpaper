@@ -35,7 +35,6 @@ pub struct WgpuRenderer {
 	config: wgpu::SurfaceConfiguration,
 	render_pipeline: wgpu::RenderPipeline,
 	texture_bind_group: wgpu::BindGroup,
-	_diffuse_texture: Texture,
 	transition_progress_bind_group: wgpu::BindGroup,
 	transition_progress_uniform_buffer: Buffer,
 }
@@ -251,7 +250,6 @@ impl Renderer for WgpuRenderer {
 			config,
 			render_pipeline,
 			texture_bind_group,
-			_diffuse_texture: texture_1,
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
 		})
