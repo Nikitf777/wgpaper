@@ -3,7 +3,9 @@ var texture1: texture_2d<f32>;
 @group(0) @binding(1)
 var texture2: texture_2d<f32>;
 @group(0) @binding(2)
-var texture_sampler: sampler;
+var texture_sampler_1: sampler;
+@group(0) @binding(3)
+var texture_sampler_2: sampler;
 
 struct TransitionProgressUniform {
     progress: f32,
@@ -32,8 +34,8 @@ fn fs_main(
     
     let blend_factor = smoothstep(inner_edge, outer_edge, dist);
     
-    let colorA = textureSample(texture1, texture_sampler, uv);
-    let colorB = textureSample(texture2, texture_sampler, uv);
+    let colorA = textureSample(texture1, texture_sampler_1, uv);
+    let colorB = textureSample(texture2, texture_sampler_2, uv);
     
     return mix(colorB, colorA, blend_factor);
 }

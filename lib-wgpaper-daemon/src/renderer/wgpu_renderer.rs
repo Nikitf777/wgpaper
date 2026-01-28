@@ -90,11 +90,9 @@ impl Renderer for WgpuRenderer {
 			.unwrap_or(surface_caps.formats[0]);
 
 		let diffuse_bytes_1 = include_bytes!("wallpaper1.jpg");
-		let diffuse_texture_1 =
-			Texture::from_bytes(&device, &queue, diffuse_bytes_1, "wallpaper1.jpg")?;
+		let texture_1 = Texture::from_bytes(&device, &queue, diffuse_bytes_1, "wallpaper1.jpg")?;
 		let diffuse_bytes_2 = include_bytes!("wallpaper2.jpg");
-		let diffuse_texture_2 =
-			Texture::from_bytes(&device, &queue, diffuse_bytes_2, "wallpaper2.jpg")?;
+		let texture_2 = Texture::from_bytes(&device, &queue, diffuse_bytes_2, "wallpaper2.jpg")?;
 
 		let texture_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -125,24 +123,34 @@ impl Renderer for WgpuRenderer {
 						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
 						count: None,
 					},
+					wgpu::BindGroupLayoutEntry {
+						binding: 3,
+						visibility: wgpu::ShaderStages::FRAGMENT,
+						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+						count: None,
+					},
 				],
 				label: Some("texture_bind_group_layout"),
 			});
 
-		let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
 			layout: &texture_bind_group_layout,
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: wgpu::BindingResource::TextureView(&diffuse_texture_1.view),
+					resource: wgpu::BindingResource::TextureView(&texture_1.view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 1,
-					resource: wgpu::BindingResource::TextureView(&diffuse_texture_2.view),
+					resource: wgpu::BindingResource::TextureView(&texture_2.view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 2,
-					resource: wgpu::BindingResource::Sampler(&diffuse_texture_1.sampler),
+					resource: wgpu::BindingResource::Sampler(&texture_1.sampler),
+				},
+				wgpu::BindGroupEntry {
+					binding: 3,
+					resource: wgpu::BindingResource::Sampler(&texture_2.sampler),
 				},
 			],
 			label: Some("diffuse_bind_group"),
@@ -242,8 +250,8 @@ impl Renderer for WgpuRenderer {
 			surface,
 			config,
 			render_pipeline,
-			diffuse_bind_group,
-			_diffuse_texture: diffuse_texture_1,
+			diffuse_bind_group: texture_bind_group,
+			_diffuse_texture: texture_1,
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
 		})
