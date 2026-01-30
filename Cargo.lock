@@ -607,6 +607,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "const_format"
+version = "0.2.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7faa7469a93a566e9ccc1c73fe783b4a65c274c5ace346038dca9c39fe0030ad"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d57c2eccfb16dbac1f4e61e206105db5820c9d26c3c472bc17c774259ef7744"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2911,6 +2931,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
+name = "wgpaper-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "const_format",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "wgpaper-daemon-actix-web"
 version = "0.1.0"
 dependencies = [
@@ -2918,6 +2948,9 @@ dependencies = [
  "anyhow",
  "calloop",
  "lib-wgpaper-daemon",
+ "rand",
+ "thiserror",
+ "wgpaper-config",
 ]
 
 [[package]]

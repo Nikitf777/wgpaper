@@ -1,27 +1,37 @@
-use actix_web::{App, HttpResponse, HttpServer, Responder, web};
-use calloop::channel::{Sender, channel};
+use actix_web::{App, HttpServer, web};
+use calloop::channel::channel;
 use lib_wgpaper_daemon::app::{self, Commands};
-use std::thread;
+use std::{sync::Arc, thread};
+
+use crate::random_file::select_random_file;
+
+mod handlers;
+mod random_file;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	let (web_tx, sctk_rx) = channel::<Commands>();
+	let config = wgpaper_config::Config::new().unwrap();
+	let directories = config.wallpaper_directories().unwrap();
+	let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str]).unwrap();
+
+	let (sender, channel) = channel::<Commands>();
 	thread::spawn(move || {
-		app::start(sctk_rx).unwrap();
+		app::start(channel, &path).unwrap();
 	});
+
+	let config_arc = Arc::new(config);
 
 	HttpServer::new(move || {
 		App::new()
-			.app_data(web::Data::new(web_tx.clone()))
-			.route("/transition/start", web::post().to(web_handler))
+			.app_data(web::Data::new(sender.clone()))
+			.app_data(web::Data::from(config_arc.clone()))
+			.route(
+				"/transition/start",
+				web::post().to(handlers::start_transition),
+			)
 	})
+	.workers(2)
 	.bind_uds("/tmp/wgpaper.socket")?
 	.run()
 	.await
-}
-
-async fn web_handler(cmd: web::Json<Commands>, tx: web::Data<Sender<Commands>>) -> impl Responder {
-	tx.send(cmd.into_inner())
-		.map(|_| HttpResponse::Ok().body("OK"))
-		.unwrap_or_else(|_| HttpResponse::ServiceUnavailable().body("SCTK offline"))
 }
