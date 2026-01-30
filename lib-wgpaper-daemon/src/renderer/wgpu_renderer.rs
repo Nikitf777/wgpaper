@@ -105,6 +105,17 @@ impl Renderer for WgpuRenderer {
 		let diffuse_bytes_2 = include_bytes!("wallpaper2.jpg");
 		let texture_2 = Texture::from_bytes(&device, &queue, diffuse_bytes_2, "wallpaper2.jpg")?;
 
+		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+			label: Some("transition_sampler"),
+			address_mode_u: wgpu::AddressMode::ClampToEdge,
+			address_mode_v: wgpu::AddressMode::ClampToEdge,
+			address_mode_w: wgpu::AddressMode::ClampToEdge,
+			mag_filter: wgpu::FilterMode::Linear,
+			min_filter: wgpu::FilterMode::Linear,
+			mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+			..Default::default()
+		});
+
 		let texture_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				entries: &[
@@ -134,12 +145,6 @@ impl Renderer for WgpuRenderer {
 						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
 						count: None,
 					},
-					wgpu::BindGroupLayoutEntry {
-						binding: 3,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-						count: None,
-					},
 				],
 				label: Some("texture_bind_group_layout"),
 			});
@@ -157,11 +162,7 @@ impl Renderer for WgpuRenderer {
 				},
 				wgpu::BindGroupEntry {
 					binding: 2,
-					resource: wgpu::BindingResource::Sampler(&texture_1.sampler),
-				},
-				wgpu::BindGroupEntry {
-					binding: 3,
-					resource: wgpu::BindingResource::Sampler(&texture_2.sampler),
+					resource: wgpu::BindingResource::Sampler(&sampler),
 				},
 			],
 			label: Some("diffuse_bind_group"),
