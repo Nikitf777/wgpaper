@@ -23,7 +23,7 @@ fn fs_main(
     let dist = distance(uv, center);
 
     let maxRadius = 1.0;
-    let borderWidth = 0.03;
+    let borderWidth = 0.0;
     
     let current_radius = transition_progress.progress * (maxRadius + borderWidth);
     

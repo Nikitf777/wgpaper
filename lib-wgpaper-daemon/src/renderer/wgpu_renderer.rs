@@ -1,5 +1,5 @@
-use super::Renderer;
-use crate::{texture::Texture, transition::TransitionProgress};
+use super::{Renderer, texture::Texture};
+use crate::transition::TransitionProgress;
 use anyhow::Context;
 use pollster::FutureExt;
 use raw_window_handle::{
@@ -44,7 +44,13 @@ pub struct WgpuRenderer {
 	queue: wgpu::Queue,
 	surface: wgpu::Surface<'static>,
 	config: wgpu::SurfaceConfiguration,
-	render_pipeline: wgpu::RenderPipeline,
+	pipeline: wgpu::RenderPipeline,
+	offscreen_textures: Vec<Texture>,
+	display_texture_idx: usize,
+	render_texture_idx: usize,
+	to_texture: Texture,
+	sampler: wgpu::Sampler,
+	texture_bind_group_layout: wgpu::BindGroupLayout,
 	texture_bind_group: wgpu::BindGroup,
 	transition_progress: TransitionProgressUniforms,
 	transition_progress_bind_group: wgpu::BindGroup,
@@ -57,6 +63,7 @@ impl Renderer for WgpuRenderer {
 		layer_surface: &LayerSurface,
 		width: u32,
 		height: u32,
+		initial_image: &[u8],
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 			backends: wgpu::Backends::PRIMARY,
@@ -100,13 +107,34 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
-		let diffuse_bytes_1 = include_bytes!("wallpaper1.jpg");
-		let texture_1 = Texture::from_bytes(&device, &queue, diffuse_bytes_1, "wallpaper1.jpg")?;
-		let diffuse_bytes_2 = include_bytes!("wallpaper2.jpg");
-		let texture_2 = Texture::from_bytes(&device, &queue, diffuse_bytes_2, "wallpaper2.jpg")?;
+		let initial_texture = Texture::from_bytes_with_format(
+			&device,
+			&queue,
+			initial_image,
+			"to_texture",
+			surface_format,
+		)?;
+
+		let data = vec![0u8; (width * height * 4) as usize]; // Creating a placeholder texture
+		let offscreen_textures = (0..3)
+			.map(|i| {
+				Texture::from_rgba8_with_format(
+					&device,
+					&queue,
+					width,
+					height,
+					&data,
+					&format!("offscreen_texture_{}", i),
+					surface_format,
+				)
+				.unwrap()
+			})
+			.collect::<Vec<_>>();
+		let display_texture_idx: usize = 0;
+		let render_texture_idx: usize = 1;
 
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-			label: Some("transition_sampler"),
+			label: Some("sampler"),
 			address_mode_u: wgpu::AddressMode::ClampToEdge,
 			address_mode_v: wgpu::AddressMode::ClampToEdge,
 			address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -154,22 +182,24 @@ impl Renderer for WgpuRenderer {
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: wgpu::BindingResource::TextureView(&texture_1.view),
+					resource: wgpu::BindingResource::TextureView(&initial_texture.view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 1,
-					resource: wgpu::BindingResource::TextureView(&texture_2.view),
+					resource: wgpu::BindingResource::TextureView(
+						&offscreen_textures[display_texture_idx].view,
+					),
 				},
 				wgpu::BindGroupEntry {
 					binding: 2,
 					resource: wgpu::BindingResource::Sampler(&sampler),
 				},
 			],
-			label: Some("diffuse_bind_group"),
+			label: Some("texture_bind_group"),
 		});
 
 		let transition_progress_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Transition Progress Uniforms"),
+			label: Some("transition_progress_uniform_buffer"),
 			size: std::mem::size_of::<TransitionProgressUniforms>() as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
@@ -200,17 +230,17 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("Shader"),
+			label: Some("vertex_shader"),
 			source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
 		});
 		let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("Shader"),
+			label: Some("fragment_shader"),
 			source: wgpu::ShaderSource::Wgsl(include_str!("fragment.wgsl").into()),
 		});
 
-		let render_pipeline_layout =
+		let transition_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-				label: Some("Render Pipeline Layout"),
+				label: Some("transition_pipeline_layout"),
 				bind_group_layouts: &[
 					&texture_bind_group_layout,
 					&transition_progress_bind_group_layout,
@@ -218,9 +248,9 @@ impl Renderer for WgpuRenderer {
 				immediate_size: 0,
 			});
 
-		let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-			label: Some("Render Pipeline"),
-			layout: Some(&render_pipeline_layout),
+		let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+			label: Some("pipeline"),
+			layout: Some(&transition_pipeline_layout),
 			vertex: wgpu::VertexState {
 				module: &vertex_shader,
 				entry_point: Some("vs_main"),
@@ -245,7 +275,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let config = wgpu::SurfaceConfiguration {
-			usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+			usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
 			format: surface_format,
 			width,
 			height,
@@ -256,21 +286,29 @@ impl Renderer for WgpuRenderer {
 		};
 		surface.configure(&device, &config);
 
+		let transition_progress = TransitionProgressUniforms::from(TransitionProgress::finished());
+
 		Ok(Self {
 			device,
 			queue,
 			surface,
 			config,
-			render_pipeline,
+			pipeline,
+			offscreen_textures,
+			display_texture_idx,
+			render_texture_idx,
+			to_texture: initial_texture,
+			sampler,
+			texture_bind_group_layout,
 			texture_bind_group,
-			transition_progress: TransitionProgressUniforms::from(TransitionProgress::finished()),
+			transition_progress,
 			transition_progress_bind_group,
 			transition_progress_uniform_buffer,
 		})
 	}
 
 	fn render(&mut self) -> anyhow::Result<()> {
-		let frame = match self.surface.get_current_texture() {
+		let surface_texture = match self.surface.get_current_texture() {
 			Ok(frame) => frame,
 			Err(SurfaceError::Outdated | SurfaceError::Lost) => {
 				self.surface.configure(&self.device, &self.config);
@@ -279,21 +317,17 @@ impl Renderer for WgpuRenderer {
 			Err(e) => return Err(anyhow::anyhow!("Failed to acquire next texture: {}", e)),
 		};
 
-		let view = frame
-			.texture
-			.create_view(&wgpu::TextureViewDescriptor::default());
-
 		let mut encoder = self
 			.device
 			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-				label: Some("Render Encoder"),
+				label: Some("encoder"),
 			});
 
 		{
 			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-				label: Some("Render Pass"),
+				label: Some("render_pass"),
 				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-					view: &view,
+					view: &self.offscreen_textures[self.render_texture_idx].view,
 					resolve_target: None,
 					ops: wgpu::Operations {
 						load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -312,14 +346,33 @@ impl Renderer for WgpuRenderer {
 				multiview_mask: None,
 			});
 
-			render_pass.set_pipeline(&self.render_pipeline);
+			render_pass.set_pipeline(&self.pipeline);
 			render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
 			render_pass.set_bind_group(1, &self.transition_progress_bind_group, &[]);
 			render_pass.draw(0..3, 0..1);
 		}
 
+		encoder.copy_texture_to_texture(
+			wgpu::TexelCopyTextureInfo {
+				texture: &self.offscreen_textures[self.render_texture_idx].texture,
+				mip_level: 0,
+				origin: wgpu::Origin3d::ZERO,
+				aspect: wgpu::TextureAspect::All,
+			},
+			wgpu::TexelCopyTextureInfo {
+				texture: &surface_texture.texture,
+				mip_level: 0,
+				origin: wgpu::Origin3d::ZERO,
+				aspect: wgpu::TextureAspect::All,
+			},
+			self.offscreen_textures[self.render_texture_idx]
+				.texture
+				.size(),
+		);
+
 		self.queue.submit(Some(encoder.finish()));
-		frame.present();
+
+		surface_texture.present();
 		Ok(())
 	}
 
@@ -342,5 +395,42 @@ impl Renderer for WgpuRenderer {
 			0,
 			bytemuck::bytes_of(&progress),
 		);
+	}
+
+	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32)) {
+		self.to_texture = Texture::from_rgba8_with_format(
+			&self.device,
+			&self.queue,
+			dimensions.0,
+			dimensions.1,
+			rgba8,
+			"to_texture",
+			self.config.format,
+		)
+		.unwrap();
+
+		self.display_texture_idx = self.render_texture_idx;
+		self.render_texture_idx = (self.display_texture_idx + 1) % 3;
+
+		self.texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout: &self.texture_bind_group_layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: wgpu::BindingResource::TextureView(
+						&self.offscreen_textures[self.display_texture_idx].view,
+					),
+				},
+				wgpu::BindGroupEntry {
+					binding: 1,
+					resource: wgpu::BindingResource::TextureView(&self.to_texture.view),
+				},
+				wgpu::BindGroupEntry {
+					binding: 2,
+					resource: wgpu::BindingResource::Sampler(&self.sampler),
+				},
+			],
+			label: Some("texture_bind_group"),
+		});
 	}
 }

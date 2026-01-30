@@ -21,7 +21,7 @@ use smithay_client_toolkit::{
 	},
 	shm::{Shm, ShmHandler},
 };
-use std::{collections::HashMap, num::NonZeroU32, time::Instant};
+use std::{collections::HashMap, fs, num::NonZeroU32, path::Path, time::Instant};
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
@@ -30,9 +30,11 @@ use wayland_client::{
 };
 
 #[derive(serde::Deserialize)]
-pub struct Commands {}
+pub enum Commands {
+	StartTransition { image_path: String },
+}
 
-pub fn start(channel: Channel<Commands>) -> anyhow::Result<()> {
+pub fn start(channel: Channel<Commands>, initial_image_path: &Path) -> anyhow::Result<()> {
 	let conn = Connection::connect_to_env()?;
 	let (globals, event_queue) = registry_queue_init(&conn)?;
 	let qh = event_queue.handle();
@@ -41,8 +43,13 @@ pub fn start(channel: Channel<Commands>) -> anyhow::Result<()> {
 
 	let loop_handle = event_loop.handle();
 	loop_handle
-		.insert_source(channel, |_, _, app| {
-			app.start_transition();
+		.insert_source(channel, |e, _, app| match e {
+			calloop::channel::Event::Msg(command) => match command {
+				Commands::StartTransition { image_path } => {
+					app.start_transition(image_path);
+				}
+			},
+			calloop::channel::Event::Closed => todo!(),
 		})
 		.unwrap();
 
@@ -50,7 +57,7 @@ pub fn start(channel: Channel<Commands>) -> anyhow::Result<()> {
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::new(globals, qh)?;
+	let mut app = App::new(globals, qh, initial_image_path)?;
 
 	event_loop.run(None, &mut app, |_| {}).unwrap();
 
@@ -80,8 +87,9 @@ impl OutputStateEntry {
 		self.layer.wl_surface().commit();
 	}
 
-	fn init_renderer(&mut self, conn: &Connection) -> anyhow::Result<()> {
-		let renderer = WgpuRenderer::new(conn, &self.layer, self.width, self.height)?;
+	fn init_renderer(&mut self, conn: &Connection, initial_image: &[u8]) -> anyhow::Result<()> {
+		let renderer =
+			WgpuRenderer::new(conn, &self.layer, self.width, self.height, initial_image)?;
 		self.renderer = Some(Box::new(renderer));
 		Ok(())
 	}
@@ -114,9 +122,16 @@ impl OutputStateEntry {
 			renderer.set_transition_progress(progress);
 		}
 	}
+
+	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32)) {
+		if let Some(renderer) = self.renderer.as_mut() {
+			renderer.set_next_image(rgba8, dimensions);
+		}
+	}
 }
 
 pub struct App {
+	initial_imgae: Vec<u8>,
 	registry_state: RegistryState,
 	seat_state: SeatState,
 	output_state: OutputState,
@@ -131,7 +146,12 @@ pub struct App {
 }
 
 impl App {
-	pub fn new(globals: GlobalList, qh: QueueHandle<Self>) -> anyhow::Result<Self> {
+	pub fn new(
+		globals: GlobalList,
+		qh: QueueHandle<Self>,
+		initial_image_path: &Path,
+	) -> anyhow::Result<Self> {
+		let image = fs::read(initial_image_path)?;
 		let registry_state = RegistryState::new(&globals);
 		let seat_state = SeatState::new(&globals, &qh);
 		let output_state = OutputState::new(&globals, &qh);
@@ -140,6 +160,7 @@ impl App {
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
 		Ok(Self {
+			initial_imgae: image,
 			registry_state,
 			seat_state,
 			output_state,
@@ -164,9 +185,14 @@ impl App {
 		}
 	}
 
-	pub fn start_transition(&mut self) {
+	pub fn start_transition(&mut self, image_path: String) {
+		let bytes = fs::read(image_path).unwrap();
+		let img = image::load_from_memory(&bytes).unwrap();
+		let rgba = img.into_rgba8();
+		let dimansions = rgba.dimensions();
 		self.transition_begin = Instant::now();
 		for (surface, entry) in self.outputs.iter_mut() {
+			entry.set_next_image(&rgba, dimansions);
 			entry.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
 			entry.render();
@@ -301,7 +327,7 @@ impl LayerShellHandler for App {
 			entry.resize(entry.width, entry.height);
 
 			if entry.renderer.is_none() {
-				if let Err(e) = entry.init_renderer(conn) {
+				if let Err(e) = entry.init_renderer(conn, &self.initial_imgae) {
 					eprintln!("Renderer init failed: {}", e);
 				}
 			}
