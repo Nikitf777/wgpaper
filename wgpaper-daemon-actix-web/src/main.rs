@@ -1,12 +1,16 @@
 use actix_web::{App, HttpServer, web};
 use calloop::channel::channel;
 use lib_wgpaper_daemon::app::{self, Commands};
-use std::{sync::Arc, thread};
+use std::{
+	sync::{Arc, Mutex},
+	thread,
+};
 
-use crate::random_file::select_random_file;
+use crate::{random_file::select_random_file, services::TransitionService};
 
 mod handlers;
 mod random_file;
+mod services;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -31,10 +35,13 @@ async fn main() -> std::io::Result<()> {
 		app::start(channel, shader, &path).unwrap();
 	});
 
+	let transition_service = Arc::new(Mutex::new(TransitionService::default()));
+
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(sender.clone()))
 			.app_data(web::Data::from(config_arc.clone()))
+			.app_data(web::Data::from(transition_service.clone()))
 			.route(
 				"/transition/start",
 				web::post().to(handlers::start_transition),
