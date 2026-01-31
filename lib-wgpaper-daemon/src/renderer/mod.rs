@@ -11,6 +11,7 @@ pub trait Renderer {
 		layer_surface: &LayerSurface,
 		width: u32,
 		height: u32,
+		animation_shader: &str,
 		initial_image: &[u8],
 	) -> anyhow::Result<Self>
 	where

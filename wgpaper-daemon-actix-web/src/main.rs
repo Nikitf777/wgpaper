@@ -11,15 +11,25 @@ mod random_file;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	let config = wgpaper_config::Config::new().unwrap();
-	let directories = config.wallpaper_directories().unwrap();
-	let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str]).unwrap();
+	let config_arc = Arc::new(config);
 
 	let (sender, channel) = channel::<Commands>();
-	thread::spawn(move || {
-		app::start(channel, &path).unwrap();
-	});
+	let config_for_thread = config_arc.clone();
 
-	let config_arc = Arc::new(config);
+	thread::spawn(move || {
+		let shader = config_for_thread
+			.animation_shader()
+			.expect("animation_shader must be configured");
+
+		let directories = config_for_thread
+			.wallpaper_directories()
+			.expect("wallpaper_directories must be configured");
+
+		let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str])
+			.expect("failed to select random wallpaper");
+
+		app::start(channel, shader, &path).unwrap();
+	});
 
 	HttpServer::new(move || {
 		App::new()

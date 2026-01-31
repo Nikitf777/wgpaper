@@ -63,6 +63,7 @@ impl Renderer for WgpuRenderer {
 		layer_surface: &LayerSurface,
 		width: u32,
 		height: u32,
+		animation_shader: &str,
 		initial_image: &[u8],
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -235,7 +236,7 @@ impl Renderer for WgpuRenderer {
 		});
 		let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("fragment_shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("fragment.wgsl").into()),
+			source: wgpu::ShaderSource::Wgsl(animation_shader.into()),
 		});
 
 		let transition_pipeline_layout =
