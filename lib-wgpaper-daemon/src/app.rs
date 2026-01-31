@@ -34,7 +34,11 @@ pub enum Commands {
 	StartTransition { image_path: String },
 }
 
-pub fn start(channel: Channel<Commands>, initial_image_path: &Path) -> anyhow::Result<()> {
+pub fn start(
+	channel: Channel<Commands>,
+	animation_shader: &Path,
+	initial_image_path: &Path,
+) -> anyhow::Result<()> {
 	let conn = Connection::connect_to_env()?;
 	let (globals, event_queue) = registry_queue_init(&conn)?;
 	let qh = event_queue.handle();
@@ -57,7 +61,7 @@ pub fn start(channel: Channel<Commands>, initial_image_path: &Path) -> anyhow::R
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::new(globals, qh, initial_image_path)?;
+	let mut app = App::new(globals, qh, animation_shader, initial_image_path)?;
 
 	event_loop.run(None, &mut app, |_| {}).unwrap();
 
@@ -87,9 +91,20 @@ impl OutputStateEntry {
 		self.layer.wl_surface().commit();
 	}
 
-	fn init_renderer(&mut self, conn: &Connection, initial_image: &[u8]) -> anyhow::Result<()> {
-		let renderer =
-			WgpuRenderer::new(conn, &self.layer, self.width, self.height, initial_image)?;
+	fn init_renderer(
+		&mut self,
+		conn: &Connection,
+		animation_shader: &str,
+		initial_image: &[u8],
+	) -> anyhow::Result<()> {
+		let renderer = WgpuRenderer::new(
+			conn,
+			&self.layer,
+			self.width,
+			self.height,
+			animation_shader,
+			initial_image,
+		)?;
 		self.renderer = Some(Box::new(renderer));
 		Ok(())
 	}
@@ -131,6 +146,7 @@ impl OutputStateEntry {
 }
 
 pub struct App {
+	animation_shader: String,
 	initial_imgae: Vec<u8>,
 	registry_state: RegistryState,
 	seat_state: SeatState,
@@ -149,8 +165,10 @@ impl App {
 	pub fn new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
+		animation_shader: &Path,
 		initial_image_path: &Path,
 	) -> anyhow::Result<Self> {
+		let animation_shader = fs::read_to_string(animation_shader)?;
 		let image = fs::read(initial_image_path)?;
 		let registry_state = RegistryState::new(&globals);
 		let seat_state = SeatState::new(&globals, &qh);
@@ -160,6 +178,7 @@ impl App {
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
 		Ok(Self {
+			animation_shader,
 			initial_imgae: image,
 			registry_state,
 			seat_state,
@@ -327,7 +346,9 @@ impl LayerShellHandler for App {
 			entry.resize(entry.width, entry.height);
 
 			if entry.renderer.is_none() {
-				if let Err(e) = entry.init_renderer(conn, &self.initial_imgae) {
+				if let Err(e) =
+					entry.init_renderer(conn, &self.animation_shader, &self.initial_imgae)
+				{
 					eprintln!("Renderer init failed: {}", e);
 				}
 			}

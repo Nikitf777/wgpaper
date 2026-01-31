@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+wgpaper-config = { path = "../wgpaper-config" }
 anyhow = "1.0.100"
 bytemuck = { version = "1.24.0", features = ["derive"] }
 calloop = "0.14.3"

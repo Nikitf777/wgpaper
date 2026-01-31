@@ -1523,6 +1523,7 @@ dependencies = [
  "smithay-client-toolkit",
  "wayland-backend",
  "wayland-client",
+ "wgpaper-config",
  "wgpu",
  "wgpu-types",
 ]

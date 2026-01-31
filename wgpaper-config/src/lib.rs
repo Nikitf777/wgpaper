@@ -21,6 +21,7 @@ pub enum ListenSocket {
 
 #[derive(Deserialize)]
 pub struct Config {
+	animation_shader: Option<PathBuf>,
 	initial_wallpaper: Option<PathBuf>,
 	wallpaper_directories: Option<Vec<PathBuf>>,
 	image_extensions: Option<Vec<String>>,
@@ -54,6 +55,11 @@ impl Config {
 			Config::APP_NAME,
 			Config::CONFIG_FILE_NAME
 		))
+	}
+
+	/// Returns the animation shader path if configured
+	pub fn animation_shader(&self) -> Option<&Path> {
+		self.animation_shader.as_deref()
 	}
 
 	/// Returns the initial wallpaper path if configured
