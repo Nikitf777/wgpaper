@@ -33,15 +33,17 @@ impl TransitionProgressUniforms {
 		}
 	}
 
-	fn from(progress: TransitionProgress) -> Self {
-		Self::new(progress.progress, progress.progress_clamped)
-	}
-
 	fn to(&self) -> TransitionProgress {
 		TransitionProgress {
 			progress: self.progress,
 			progress_clamped: self.progress_clamped,
 		}
+	}
+}
+
+impl From<TransitionProgress> for TransitionProgressUniforms {
+	fn from(progress: TransitionProgress) -> Self {
+		Self::new(progress.progress, progress.progress_clamped)
 	}
 }
 
