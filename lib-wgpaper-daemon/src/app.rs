@@ -195,12 +195,12 @@ impl App {
 	}
 
 	fn render_all(&mut self, qh: &QueueHandle<Self>) {
-		for (_, entry) in self.outputs.iter_mut() {
-			entry
+		for (_, output) in self.outputs.iter_mut() {
+			output
 				.layer
 				.wl_surface()
-				.frame(qh, entry.layer.wl_surface().clone());
-			entry.render();
+				.frame(qh, output.layer.wl_surface().clone());
+			output.render();
 		}
 	}
 
@@ -209,9 +209,9 @@ impl App {
 		let img = image::load_from_memory(&bytes).unwrap();
 		let rgba = img.into_rgba8();
 		let dimensions = rgba.dimensions();
-		for (surface, entry) in self.outputs.iter_mut() {
-			entry.set_next_image(&rgba, dimensions);
-			entry.set_transition_progress(TransitionProgress::reset());
+		for (surface, output) in self.outputs.iter_mut() {
+			output.set_next_image(&rgba, dimensions);
+			output.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
 			entry.render();
 		}
@@ -317,7 +317,7 @@ impl OutputHandler for App {
 	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
 		if let Some((_, _)) = self
 			.outputs
-			.extract_if(|_, entry| entry.output == _output)
+			.extract_if(|_, output| output.output == _output)
 			.next()
 		{
 			// TODO: log that the output was removed.
@@ -327,7 +327,7 @@ impl OutputHandler for App {
 
 impl LayerShellHandler for App {
 	fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
-		self.outputs.retain(|_, entry| &entry.layer != layer);
+		self.outputs.retain(|_, output| &output.layer != layer);
 	}
 
 	fn configure(
@@ -338,16 +338,16 @@ impl LayerShellHandler for App {
 		configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
 		_serial: u32,
 	) {
-		if let Some(entry) = self.outputs.values_mut().find(|e| &e.layer == layer) {
+		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
 			let (new_width, new_height) = configure.new_size;
-			entry.width = NonZeroU32::new(new_width).map_or(256, NonZeroU32::get);
-			entry.height = NonZeroU32::new(new_height).map_or(256, NonZeroU32::get);
+			output.width = NonZeroU32::new(new_width).map_or(256, NonZeroU32::get);
+			output.height = NonZeroU32::new(new_height).map_or(256, NonZeroU32::get);
 
-			entry.resize(entry.width, entry.height);
+			output.resize(output.width, output.height);
 
-			if entry.renderer.is_none() {
+			if output.renderer.is_none() {
 				if let Err(e) =
-					entry.init_renderer(conn, &self.animation_shader, &self.initial_imgae)
+					output.init_renderer(conn, &self.animation_shader, &self.initial_imgae)
 				{
 					eprintln!("Renderer init failed: {}", e);
 				}
