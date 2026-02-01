@@ -209,13 +209,13 @@ impl App {
 		let img = image::load_from_memory(&bytes).unwrap();
 		let rgba = img.into_rgba8();
 		let dimensions = rgba.dimensions();
-		self.transition_begin = Instant::now();
 		for (surface, entry) in self.outputs.iter_mut() {
 			entry.set_next_image(&rgba, dimensions);
 			entry.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
 			entry.render();
 		}
+		self.transition_begin = Instant::now();
 	}
 }
 
