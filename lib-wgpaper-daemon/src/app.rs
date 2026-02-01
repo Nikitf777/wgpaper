@@ -194,13 +194,13 @@ impl App {
 		})
 	}
 
-	fn render_all(&mut self, qh: &QueueHandle<Self>) {
+	fn queue_render_all(&mut self, qh: &QueueHandle<Self>) {
 		for (_, output) in self.outputs.iter_mut() {
 			output
 				.layer
 				.wl_surface()
 				.frame(qh, output.layer.wl_surface().clone());
-			output.render();
+			output.layer.wl_surface().commit();
 		}
 	}
 
@@ -213,7 +213,7 @@ impl App {
 			output.set_next_image(&rgba, dimensions);
 			output.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
-			entry.render();
+			output.layer.wl_surface().commit();
 		}
 		self.transition_begin = Instant::now();
 	}
@@ -228,16 +228,15 @@ impl CompositorHandler for App {
 		_time: u32,
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
-			if !output.is_transitioning() {
-				return;
-			}
 			let progress = self
 				.transition
 				.advance_to(Instant::now().duration_since(self.transition_begin));
 			if !progress.is_finished() {
 				surface.frame(qh, surface.clone());
 			}
-			output.set_transition_progress(progress);
+			if output.is_transitioning() {
+				output.set_transition_progress(progress);
+			}
 			output.render();
 		}
 	}
@@ -353,7 +352,7 @@ impl LayerShellHandler for App {
 				}
 			}
 
-			self.render_all(qh);
+			self.queue_render_all(qh);
 		}
 	}
 }
