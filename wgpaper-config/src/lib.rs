@@ -5,10 +5,11 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, strum_macros::Display)]
 pub enum ScalingStrategy {
 	Stretch,
 	Fit,
+	#[default]
 	Cover,
 	Center,
 }
