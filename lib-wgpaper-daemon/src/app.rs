@@ -1,5 +1,5 @@
 use crate::{
-	renderer::{Renderer, wgpu_renderer::WgpuRenderer},
+	renderer::{GpuSelector, Renderer, wgpu_renderer::WgpuRenderer},
 	transition::{Transition, TransitionProgress},
 };
 use anyhow::Context;
@@ -36,6 +36,7 @@ pub enum Commands {
 
 pub fn start(
 	channel: Channel<Commands>,
+	gpu_selector: wgpaper_config::GpuSelector,
 	animation_shader: &Path,
 	initial_image_path: &Path,
 ) -> anyhow::Result<()> {
@@ -61,7 +62,13 @@ pub fn start(
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::new(globals, qh, animation_shader, initial_image_path)?;
+	let mut app = App::new(
+		globals,
+		qh,
+		gpu_selector,
+		animation_shader,
+		initial_image_path,
+	)?;
 
 	event_loop.run(None, &mut app, |_| {}).unwrap();
 
@@ -94,6 +101,7 @@ impl OutputStateEntry {
 	fn init_renderer(
 		&mut self,
 		conn: &Connection,
+		gpu_selector: crate::renderer::GpuSelector,
 		animation_shader: &str,
 		initial_image: &[u8],
 	) -> anyhow::Result<()> {
@@ -102,6 +110,7 @@ impl OutputStateEntry {
 			&self.layer,
 			self.width,
 			self.height,
+			gpu_selector,
 			animation_shader,
 			initial_image,
 		)?;
@@ -146,8 +155,6 @@ impl OutputStateEntry {
 }
 
 pub struct App {
-	animation_shader: String,
-	initial_imgae: Vec<u8>,
 	registry_state: RegistryState,
 	seat_state: SeatState,
 	output_state: OutputState,
@@ -155,8 +162,12 @@ pub struct App {
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
 	outputs: HashMap<WlSurface, OutputStateEntry>,
-	pub exit: bool,
 	qh: QueueHandle<App>,
+	pub exit: bool,
+
+	gpu_selector: GpuSelector,
+	animation_shader: String,
+	initial_imgae: Vec<u8>,
 	transition_begin: Instant,
 	transition: Transition,
 }
@@ -165,11 +176,10 @@ impl App {
 	pub fn new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
+		gpu_selector: wgpaper_config::GpuSelector,
 		animation_shader: &Path,
 		initial_image_path: &Path,
 	) -> anyhow::Result<Self> {
-		let animation_shader = fs::read_to_string(animation_shader)?;
-		let image = fs::read(initial_image_path)?;
 		let registry_state = RegistryState::new(&globals);
 		let seat_state = SeatState::new(&globals, &qh);
 		let output_state = OutputState::new(&globals, &qh);
@@ -177,9 +187,11 @@ impl App {
 		let layer_shell = LayerShell::bind(&globals, &qh).context("layer shell not available")?;
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
+		let gpu_selector = GpuSelector::from(gpu_selector);
+		let animation_shader = fs::read_to_string(animation_shader)?;
+		let image = fs::read(initial_image_path)?;
+
 		Ok(Self {
-			animation_shader,
-			initial_imgae: image,
 			registry_state,
 			seat_state,
 			output_state,
@@ -187,8 +199,11 @@ impl App {
 			compositor_state,
 			layer_shell,
 			outputs: HashMap::new(),
-			exit: false,
 			qh,
+			exit: false,
+			gpu_selector,
+			animation_shader,
+			initial_imgae: image,
 			transition_begin: Instant::now(),
 			transition: Transition::new(1.0, (0.54, 0.0, 0.34, 0.99)),
 		})
@@ -345,9 +360,12 @@ impl LayerShellHandler for App {
 			output.resize(output.width, output.height);
 
 			if output.renderer.is_none() {
-				if let Err(e) =
-					output.init_renderer(conn, &self.animation_shader, &self.initial_imgae)
-				{
+				if let Err(e) = output.init_renderer(
+					conn,
+					self.gpu_selector.clone(),
+					&self.animation_shader,
+					&self.initial_imgae,
+				) {
 					eprintln!("Renderer init failed: {}", e);
 				}
 			}

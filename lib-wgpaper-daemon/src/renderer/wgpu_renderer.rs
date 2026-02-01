@@ -1,5 +1,11 @@
 use super::{Renderer, texture::Texture};
-use crate::transition::TransitionProgress;
+use crate::{
+	renderer::{
+		GpuSelector,
+		wgpu_selector::{WgpuSelector, select_gpu},
+	},
+	transition::TransitionProgress,
+};
 use anyhow::Context;
 use pollster::FutureExt;
 use raw_window_handle::{
@@ -63,6 +69,7 @@ impl Renderer for WgpuRenderer {
 		layer_surface: &LayerSurface,
 		width: u32,
 		height: u32,
+		gpu_selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &[u8],
 	) -> anyhow::Result<Self> {
@@ -87,13 +94,10 @@ impl Renderer for WgpuRenderer {
 				.context("Failed to create surface")?
 		};
 
-		let adapter = instance
-			.request_adapter(&wgpu::RequestAdapterOptions {
-				compatible_surface: Some(&surface),
-				..Default::default()
-			})
-			.block_on()
-			.context("Failed to request adapter")?;
+		let adapter =
+			pollster::block_on(select_gpu(&instance, WgpuSelector::from(gpu_selector))).unwrap_or(
+				pollster::block_on(select_gpu(&instance, WgpuSelector::default()))?,
+			);
 
 		let (device, queue) = adapter
 			.request_device(&wgpu::DeviceDescriptor::default())

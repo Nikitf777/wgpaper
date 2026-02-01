@@ -4,6 +4,7 @@ use wayland_client::Connection;
 
 pub mod texture;
 pub mod wgpu_renderer;
+pub mod wgpu_selector;
 
 pub trait Renderer {
 	fn new(
@@ -11,6 +12,7 @@ pub trait Renderer {
 		layer_surface: &LayerSurface,
 		width: u32,
 		height: u32,
+		selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &[u8],
 	) -> anyhow::Result<Self>
@@ -26,4 +28,51 @@ pub trait Renderer {
 	fn set_transition_progress(&mut self, progress: TransitionProgress);
 
 	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32));
+}
+
+#[derive(Debug, Clone)]
+pub struct GpuSelector {
+	pub index: Option<usize>,
+	pub name_substring: Option<String>,
+	pub device_type: Option<DeviceType>,
+}
+
+#[derive(Debug, Clone)]
+pub enum DeviceType {
+	Other,
+	IntegratedGpu,
+	DiscreteGpu,
+	VirtualGpu,
+	Cpu,
+}
+
+impl From<wgpaper_config::DeviceType> for DeviceType {
+	#[inline]
+	fn from(src: wgpaper_config::DeviceType) -> Self {
+		match src {
+			wgpaper_config::DeviceType::Other => DeviceType::Other,
+			wgpaper_config::DeviceType::IntegratedGpu => DeviceType::IntegratedGpu,
+			wgpaper_config::DeviceType::DiscreteGpu => DeviceType::DiscreteGpu,
+			wgpaper_config::DeviceType::VirtualGpu => DeviceType::VirtualGpu,
+			wgpaper_config::DeviceType::Cpu => DeviceType::Cpu,
+		}
+	}
+}
+
+impl From<wgpaper_config::GpuSelector> for GpuSelector {
+	fn from(selector: wgpaper_config::GpuSelector) -> Self {
+		Self {
+			index: selector.index,
+			name_substring: selector.name_substring,
+			device_type: selector
+				.device_type
+				.map(|device_type| DeviceType::from(device_type)),
+		}
+	}
+}
+
+impl Default for GpuSelector {
+	fn default() -> Self {
+		Self::from(wgpaper_config::GpuSelector::default())
+	}
 }

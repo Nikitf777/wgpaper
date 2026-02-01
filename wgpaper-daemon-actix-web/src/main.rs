@@ -1,3 +1,4 @@
+use crate::{random_file::select_random_file, services::TransitionService};
 use actix_web::{App, HttpServer, web};
 use calloop::channel::channel;
 use lib_wgpaper_daemon::app::{self, Commands};
@@ -5,8 +6,6 @@ use std::{
 	sync::{Arc, Mutex},
 	thread,
 };
-
-use crate::{random_file::select_random_file, services::TransitionService};
 
 mod handlers;
 mod random_file;
@@ -32,7 +31,9 @@ async fn main() -> std::io::Result<()> {
 		let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str])
 			.expect("failed to select random wallpaper");
 
-		app::start(channel, shader, &path).unwrap();
+		let gpu_selector = config_for_thread.gpu().cloned().unwrap_or_default();
+
+		app::start(channel, gpu_selector, shader, &path).unwrap();
 	});
 
 	let transition_service = Arc::new(Mutex::new(TransitionService::default()));
