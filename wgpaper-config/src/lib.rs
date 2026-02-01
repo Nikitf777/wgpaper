@@ -19,6 +19,33 @@ pub enum ListenSocket {
 	UDS { path: PathBuf },
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct GpuSelector {
+	pub index: Option<usize>,
+	pub name_substring: Option<String>,
+	pub device_type: Option<DeviceType>,
+}
+
+impl Default for GpuSelector {
+	fn default() -> Self {
+		Self {
+			index: Some(0),
+			name_substring: None,
+			device_type: None,
+		}
+	}
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub enum DeviceType {
+	Other,
+	#[default]
+	IntegratedGpu,
+	DiscreteGpu,
+	VirtualGpu,
+	Cpu,
+}
+
 #[derive(Deserialize)]
 pub struct Config {
 	animation_shader: Option<PathBuf>,
@@ -27,6 +54,7 @@ pub struct Config {
 	image_extensions: Option<Vec<String>>,
 	scaling_strategy: Option<ScalingStrategy>,
 	listen_socket: Option<ListenSocket>,
+	gpu: Option<GpuSelector>,
 }
 
 impl Config {
@@ -85,5 +113,10 @@ impl Config {
 	/// Returns the listen socket configuration if set
 	pub fn listen_socket(&self) -> Option<&ListenSocket> {
 		self.listen_socket.as_ref()
+	}
+
+	/// Returns the GPU configuration if set
+	pub fn gpu(&self) -> Option<&GpuSelector> {
+		self.gpu.as_ref()
 	}
 }
