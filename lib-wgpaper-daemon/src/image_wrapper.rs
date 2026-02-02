@@ -30,4 +30,8 @@ impl ImageWrapper {
 	pub fn height(&self) -> u32 {
 		self.height
 	}
+
+	pub fn dimensions(&self) -> (u32, u32) {
+		(self.width, self.height)
+	}
 }
