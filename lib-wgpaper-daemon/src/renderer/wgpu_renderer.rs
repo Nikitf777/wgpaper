@@ -549,13 +549,13 @@ impl Renderer for WgpuRenderer {
 		);
 	}
 
-	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32)) {
+	fn set_next_image(&mut self, image: &ImageWrapper) {
 		self.to_texture = Texture::from_rgba8_with_format(
 			&self.device,
 			&self.queue,
-			dimensions.0,
-			dimensions.1,
-			rgba8,
+			image.width(),
+			image.height(),
+			image.as_slice(),
 			"to_texture",
 			self.config.format,
 		)

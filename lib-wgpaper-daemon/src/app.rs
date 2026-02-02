@@ -154,9 +154,9 @@ impl OutputStateEntry {
 		}
 	}
 
-	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32)) {
+	fn set_next_image(&mut self, image: &ImageWrapper) {
 		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_next_image(rgba8, dimensions);
+			renderer.set_next_image(image);
 		}
 	}
 }
@@ -226,18 +226,16 @@ impl App {
 		}
 	}
 
-	pub fn start_transition(&mut self, image_path: &Path) {
-		let bytes = fs::read(image_path).unwrap();
-		let img = image::load_from_memory(&bytes).unwrap();
-		let rgba = img.into_rgba8();
-		let dimensions = rgba.dimensions();
+	pub fn start_transition(&mut self, image_path: &Path) -> anyhow::Result<()> {
+		let image = ImageWrapper::from_path(image_path)?;
 		for (surface, output) in self.outputs.iter_mut() {
-			output.set_next_image(&rgba, dimensions);
+			output.set_next_image(&image);
 			output.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
 			output.layer.wl_surface().commit();
 		}
 		self.transition_begin = Instant::now();
+		Ok(())
 	}
 }
 
