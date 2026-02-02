@@ -22,7 +22,13 @@ use smithay_client_toolkit::{
 	},
 	shm::{Shm, ShmHandler},
 };
-use std::{collections::HashMap, fs, num::NonZeroU32, path::Path, time::Instant};
+use std::{
+	collections::HashMap,
+	fs,
+	num::NonZeroU32,
+	path::{Path, PathBuf},
+	time::Instant,
+};
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
@@ -32,7 +38,7 @@ use wayland_client::{
 
 #[derive(serde::Deserialize)]
 pub enum Commands {
-	StartTransition { image_path: String },
+	StartTransition { image_path: PathBuf },
 }
 
 pub fn start(
@@ -52,7 +58,7 @@ pub fn start(
 		.insert_source(channel, |e, _, app| match e {
 			calloop::channel::Event::Msg(command) => match command {
 				Commands::StartTransition { image_path } => {
-					app.start_transition(image_path);
+					app.start_transition(&image_path);
 				}
 			},
 			calloop::channel::Event::Closed => todo!(),
@@ -220,7 +226,7 @@ impl App {
 		}
 	}
 
-	pub fn start_transition(&mut self, image_path: String) {
+	pub fn start_transition(&mut self, image_path: &Path) {
 		let bytes = fs::read(image_path).unwrap();
 		let img = image::load_from_memory(&bytes).unwrap();
 		let rgba = img.into_rgba8();

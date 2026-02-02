@@ -27,9 +27,7 @@ impl TransitionService {
 		)
 		.unwrap();
 		self.prev_image_path = Some(path.clone());
-		let command = Commands::StartTransition {
-			image_path: path.to_str().unwrap().to_string(),
-		};
+		let command = Commands::StartTransition { image_path: path };
 		anyhow::Ok(
 			sender
 				.send(command)
