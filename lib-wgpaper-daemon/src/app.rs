@@ -212,7 +212,7 @@ impl App {
 			animation_shader,
 			current_image: image,
 			transition_begin: Instant::now(),
-			transition: Transition::new(1.0, (0.54, 0.0, 0.34, 0.99)),
+			transition: Transition::default(),
 		})
 	}
 
