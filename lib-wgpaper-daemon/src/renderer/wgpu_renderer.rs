@@ -438,9 +438,7 @@ impl Renderer for WgpuRenderer {
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: wgpu::BindingResource::TextureView(
-						&offscreen_textures[display_texture_idx].view,
-					),
+					resource: wgpu::BindingResource::TextureView(&initial_texture.view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 1,
