@@ -227,9 +227,9 @@ impl App {
 	}
 
 	pub fn start_transition(&mut self, image_path: &Path) -> anyhow::Result<()> {
-		let image = ImageWrapper::from_path(image_path)?;
+		self.current_image = ImageWrapper::from_path(image_path)?;
 		for (surface, output) in self.outputs.iter_mut() {
-			output.set_next_image(&image);
+			output.set_next_image(&self.current_image);
 			output.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
 			output.layer.wl_surface().commit();
