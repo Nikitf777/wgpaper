@@ -54,3 +54,9 @@ impl Transition {
 		}
 	}
 }
+
+impl Default for Transition {
+	fn default() -> Self {
+		Self::new(1.0, (0.54, 0.0, 0.34, 0.99))
+	}
+}
