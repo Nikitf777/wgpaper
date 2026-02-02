@@ -2,6 +2,7 @@ use crate::{image_wrapper::ImageWrapper, transition::TransitionProgress};
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
 
+pub mod lerp;
 pub mod texture;
 pub mod wgpu_renderer;
 pub mod wgpu_selector;
