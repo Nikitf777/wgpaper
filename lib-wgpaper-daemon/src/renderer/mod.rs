@@ -27,7 +27,7 @@ pub trait Renderer {
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress);
 
-	fn set_next_image(&mut self, rgba8: &[u8], dimensions: (u32, u32));
+	fn set_next_image(&mut self, image: &ImageWrapper);
 }
 
 #[derive(Debug, Clone)]
