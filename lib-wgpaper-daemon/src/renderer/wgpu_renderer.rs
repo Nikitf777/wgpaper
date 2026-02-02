@@ -46,10 +46,10 @@ struct TransitionProgressUniforms {
 }
 
 impl TransitionProgressUniforms {
-	fn new(v1: f32, v2: f32) -> Self {
+	fn new(progress: f32, progress_clamped: f32) -> Self {
 		Self {
-			progress: v1,
-			progress_clamped: v2,
+			progress,
+			progress_clamped,
 			_padding: [0u8; 248],
 		}
 	}
@@ -215,6 +215,44 @@ impl Renderer for WgpuRenderer {
 			source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
 		});
 
+		let scaling_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("scaling_data_uniform_buffer"),
+			size: std::mem::size_of::<ScalingDataUniforms>() as wgpu::BufferAddress,
+			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		});
+
+		WgpuRenderer::write_scaling_data(
+			(width as f32, height as f32),
+			(initial_image.width() as f32, initial_image.height() as f32),
+			&queue,
+			&scaling_data_uniform_buffer,
+		);
+
+		let scaling_data_bind_group_layout =
+			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+				entries: &[wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::FRAGMENT,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: wgpu::BufferSize::new(256),
+					},
+					count: None,
+				}],
+				label: Some("scaling_data_bind_group_layout"),
+			});
+
+		let scaling_data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout: &scaling_data_bind_group_layout,
+			entries: &[wgpu::BindGroupEntry {
+				binding: 0,
+				resource: scaling_data_uniform_buffer.as_entire_binding(),
+			}],
+			label: Some("scaling_data_bind_group"),
+		});
+
 		// Animation Pipeline
 		let offscreen_textures = (0..3)
 			.map(|i| {
@@ -328,6 +366,7 @@ impl Renderer for WgpuRenderer {
 				label: Some("animation_pipeline_layout"),
 				bind_group_layouts: &[
 					&animation_texture_bind_group_layout,
+					&scaling_data_bind_group_layout,
 					&transition_progress_bind_group_layout,
 				],
 				immediate_size: 0,
@@ -409,44 +448,6 @@ impl Renderer for WgpuRenderer {
 				},
 			],
 			label: Some("scaling_texture_bind_group"),
-		});
-
-		let scaling_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("scaling_data_uniform_buffer"),
-			size: std::mem::size_of::<ScalingDataUniforms>() as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
-
-		WgpuRenderer::write_scaling_data(
-			(width as f32, height as f32),
-			(initial_image.width() as f32, initial_image.height() as f32),
-			&queue,
-			&scaling_data_uniform_buffer,
-		);
-
-		let scaling_data_bind_group_layout =
-			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-				entries: &[wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Uniform,
-						has_dynamic_offset: false,
-						min_binding_size: wgpu::BufferSize::new(256),
-					},
-					count: None,
-				}],
-				label: Some("scaling_data_bind_group_layout"),
-			});
-
-		let scaling_data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &scaling_data_bind_group_layout,
-			entries: &[wgpu::BindGroupEntry {
-				binding: 0,
-				resource: scaling_data_uniform_buffer.as_entire_binding(),
-			}],
-			label: Some("scaling_data_bind_group"),
 		});
 
 		let scaling_fragment_shader =
@@ -579,7 +580,8 @@ impl Renderer for WgpuRenderer {
 
 			animation_render_pass.set_pipeline(&self.animation_pipeline);
 			animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
-			animation_render_pass.set_bind_group(1, &self.transition_progress_bind_group, &[]);
+			animation_render_pass.set_bind_group(1, &self.scaling_data_bind_group, &[]);
+			animation_render_pass.set_bind_group(2, &self.transition_progress_bind_group, &[]);
 			animation_render_pass.draw(0..3, 0..1);
 		}
 
