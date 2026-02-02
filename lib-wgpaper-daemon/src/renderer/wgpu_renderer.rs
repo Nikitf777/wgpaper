@@ -338,7 +338,7 @@ impl Renderer for WgpuRenderer {
 					},
 					count: None,
 				}],
-				label: None,
+				label: Some("transition_progress_bind_group_layout"),
 			});
 
 		let transition_progress_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -347,7 +347,7 @@ impl Renderer for WgpuRenderer {
 				binding: 0,
 				resource: transition_progress_uniform_buffer.as_entire_binding(),
 			}],
-			label: None,
+			label: Some("transition_progress_bind_group"),
 		});
 
 		let animation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
