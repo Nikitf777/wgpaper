@@ -1,4 +1,5 @@
 use crate::{
+	image_wrapper::ImageWrapper,
 	renderer::{GpuSelector, Renderer, wgpu_renderer::WgpuRenderer},
 	transition::{Transition, TransitionProgress},
 };
@@ -103,7 +104,7 @@ impl OutputStateEntry {
 		conn: &Connection,
 		gpu_selector: crate::renderer::GpuSelector,
 		animation_shader: &str,
-		initial_image: &[u8],
+		initial_image: &ImageWrapper,
 	) -> anyhow::Result<()> {
 		let renderer = WgpuRenderer::new(
 			conn,
@@ -167,7 +168,7 @@ pub struct App {
 
 	gpu_selector: GpuSelector,
 	animation_shader: String,
-	initial_imgae: Vec<u8>,
+	current_image: ImageWrapper,
 	transition_begin: Instant,
 	transition: Transition,
 }
@@ -189,7 +190,7 @@ impl App {
 
 		let gpu_selector = GpuSelector::from(gpu_selector);
 		let animation_shader = fs::read_to_string(animation_shader)?;
-		let image = fs::read(initial_image_path)?;
+		let image = ImageWrapper::from_path(initial_image_path)?;
 
 		Ok(Self {
 			registry_state,
@@ -203,7 +204,7 @@ impl App {
 			exit: false,
 			gpu_selector,
 			animation_shader,
-			initial_imgae: image,
+			current_image: image,
 			transition_begin: Instant::now(),
 			transition: Transition::new(1.0, (0.54, 0.0, 0.34, 0.99)),
 		})
@@ -364,7 +365,7 @@ impl LayerShellHandler for App {
 					conn,
 					self.gpu_selector.clone(),
 					&self.animation_shader,
-					&self.initial_imgae,
+					&self.current_image,
 				) {
 					eprintln!("Renderer init failed: {}", e);
 				}

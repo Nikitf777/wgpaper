@@ -1,5 +1,6 @@
 use super::{Renderer, texture::Texture};
 use crate::{
+	image_wrapper::ImageWrapper,
 	renderer::{
 		GpuSelector,
 		wgpu_selector::{WgpuSelector, select_gpu},
@@ -92,7 +93,7 @@ impl Renderer for WgpuRenderer {
 		height: u32,
 		gpu_selector: GpuSelector,
 		animation_shader: &str,
-		initial_image: &[u8],
+		initial_image: &ImageWrapper,
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 			backends: wgpu::Backends::PRIMARY,
@@ -133,10 +134,12 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
-		let initial_texture = Texture::from_bytes_with_format(
+		let initial_texture = Texture::from_rgba8_with_format(
 			&device,
 			&queue,
-			initial_image,
+			initial_image.width(),
+			initial_image.height(),
+			initial_image.as_slice(),
 			"to_texture",
 			surface_format,
 		)?;

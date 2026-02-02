@@ -1,4 +1,4 @@
-use crate::transition::TransitionProgress;
+use crate::{image_wrapper::ImageWrapper, transition::TransitionProgress};
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
 
@@ -14,7 +14,7 @@ pub trait Renderer {
 		height: u32,
 		selector: GpuSelector,
 		animation_shader: &str,
-		initial_image: &[u8],
+		initial_image: &ImageWrapper,
 	) -> anyhow::Result<Self>
 	where
 		Self: Sized;
