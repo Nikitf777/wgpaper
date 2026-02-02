@@ -8,8 +8,8 @@ use std::{
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, strum_macros::Display)]
 pub enum ScalingStrategy {
 	Stretch,
-	#[default]
 	Fit,
+	#[default]
 	Cover,
 	Center,
 }

@@ -3,6 +3,7 @@ use crate::{
 	image_wrapper::ImageWrapper,
 	renderer::{
 		GpuSelector,
+		lerp::Lerp,
 		wgpu_selector::{WgpuSelector, select_gpu},
 	},
 	transition::TransitionProgress,
@@ -27,10 +28,10 @@ struct ScalingDataUniforms {
 }
 
 impl ScalingDataUniforms {
-	fn new(screen_size: (u32, u32), texture_size: (u32, u32)) -> Self {
+	fn new(screen_size: (f32, f32), texture_size: (f32, f32)) -> Self {
 		Self {
-			screen_size: [screen_size.0 as f32, screen_size.1 as f32],
-			texture_size: [texture_size.0 as f32, texture_size.1 as f32],
+			screen_size: [screen_size.0, screen_size.1],
+			texture_size: [texture_size.0, texture_size.1],
 			_padding: [0u8; 240],
 		}
 	}
@@ -74,13 +75,6 @@ pub struct WgpuRenderer {
 	config: wgpu::SurfaceConfiguration,
 	sampler: wgpu::Sampler,
 
-	texture_before_scaling: Texture,
-	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
-	scaling_texture_bind_group: wgpu::BindGroup,
-	scaling_data_uniform_buffer: Buffer,
-	scaling_data_bind_group: wgpu::BindGroup,
-	scaling_pipeline: wgpu::RenderPipeline,
-
 	offscreen_textures: Vec<Texture>,
 	to_texture: Texture,
 	display_texture_idx: usize,
@@ -88,6 +82,15 @@ pub struct WgpuRenderer {
 	animation_texture_bind_group_layout: wgpu::BindGroupLayout,
 	animation_texture_bind_group: wgpu::BindGroup,
 	animation_pipeline: wgpu::RenderPipeline,
+
+	texture_before_scaling: Texture,
+	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
+	scaling_texture_bind_group: wgpu::BindGroup,
+	scaling_data_uniform_buffer: Buffer,
+	scaling_data_bind_group: wgpu::BindGroup,
+	prev_image_size: (f32, f32),
+	current_interpolated_texture_size: (f32, f32),
+	scaling_pipeline: wgpu::RenderPipeline,
 
 	transition_progress: TransitionProgressUniforms,
 	transition_progress_bind_group: wgpu::BindGroup,
@@ -101,8 +104,8 @@ impl WgpuRenderer {
 	const CENTER_SHADER: &str = include_str!("fragment_center.wgsl");
 
 	fn write_scaling_data(
-		screen_size: (u32, u32),
-		texture_size: (u32, u32),
+		screen_size: (f32, f32),
+		texture_size: (f32, f32),
 		queue: &Queue,
 		buffer: &Buffer,
 	) {
@@ -199,9 +202,8 @@ impl Renderer for WgpuRenderer {
 
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("sampler"),
-			address_mode_u: wgpu::AddressMode::ClampToEdge,
-			address_mode_v: wgpu::AddressMode::ClampToEdge,
-			address_mode_w: wgpu::AddressMode::ClampToEdge,
+			address_mode_u: wgpu::AddressMode::Repeat,
+			address_mode_v: wgpu::AddressMode::Repeat,
 			mag_filter: wgpu::FilterMode::Linear,
 			min_filter: wgpu::FilterMode::Linear,
 			mipmap_filter: wgpu::MipmapFilterMode::Nearest,
@@ -417,8 +419,8 @@ impl Renderer for WgpuRenderer {
 		});
 
 		WgpuRenderer::write_scaling_data(
-			(width, height),
-			initial_image.dimensions(),
+			(width as f32, height as f32),
+			(initial_image.width() as f32, initial_image.height() as f32),
 			&queue,
 			&scaling_data_uniform_buffer,
 		);
@@ -500,19 +502,13 @@ impl Renderer for WgpuRenderer {
 
 		let transition_progress = TransitionProgressUniforms::from(TransitionProgress::finished());
 
+		let image_size_f32 = (initial_image.width() as f32, initial_image.height() as f32);
+
 		Ok(Self {
 			device,
 			queue,
 			surface,
 			config,
-
-			sampler,
-			texture_before_scaling: scaled_texture,
-			scaling_texture_bind_group_layout,
-			scaling_texture_bind_group,
-			scaling_data_uniform_buffer,
-			scaling_data_bind_group,
-			scaling_pipeline,
 
 			offscreen_textures,
 			to_texture: initial_texture,
@@ -521,6 +517,16 @@ impl Renderer for WgpuRenderer {
 			animation_texture_bind_group_layout,
 			animation_texture_bind_group,
 			animation_pipeline,
+
+			sampler,
+			texture_before_scaling: scaled_texture,
+			scaling_texture_bind_group_layout,
+			scaling_texture_bind_group,
+			scaling_data_uniform_buffer,
+			scaling_data_bind_group,
+			prev_image_size: image_size_f32,
+			current_interpolated_texture_size: image_size_f32,
+			scaling_pipeline,
 
 			transition_progress,
 			transition_progress_bind_group,
@@ -553,7 +559,6 @@ impl Renderer for WgpuRenderer {
 					label: Some("animation_render_pass"),
 					color_attachments: &[Some(wgpu::RenderPassColorAttachment {
 						view: &self.texture_before_scaling.view,
-						// view: &self.offscreen_textures[self.render_texture_idx].view,
 						resolve_target: None,
 						ops: wgpu::Operations {
 							load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -581,7 +586,6 @@ impl Renderer for WgpuRenderer {
 		encoder.copy_texture_to_texture(
 			wgpu::TexelCopyTextureInfo {
 				texture: &self.texture_before_scaling.texture,
-				// texture: &self.offscreen_textures[self.render_texture_idx].texture,
 				mip_level: 0,
 				origin: wgpu::Origin3d::ZERO,
 				aspect: wgpu::TextureAspect::All,
@@ -602,7 +606,6 @@ impl Renderer for WgpuRenderer {
 				label: Some("scaling_render_pass"),
 				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
 					view: &surface_view,
-					// view: &self.offscreen_textures[self.render_texture_idx].view,
 					resolve_target: None,
 					ops: wgpu::Operations {
 						load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -627,25 +630,6 @@ impl Renderer for WgpuRenderer {
 			scaling_render_pass.draw(0..3, 0..1);
 		}
 
-		// encoder.copy_texture_to_texture(
-		// 	wgpu::TexelCopyTextureInfo {
-		// 		texture: &self.texture_before_scaling.texture,
-		// 		// texture: &self.offscreen_textures[self.render_texture_idx].texture,
-		// 		mip_level: 0,
-		// 		origin: wgpu::Origin3d::ZERO,
-		// 		aspect: wgpu::TextureAspect::All,
-		// 	},
-		// 	wgpu::TexelCopyTextureInfo {
-		// 		texture: &surface_texture.texture,
-		// 		mip_level: 0,
-		// 		origin: wgpu::Origin3d::ZERO,
-		// 		aspect: wgpu::TextureAspect::All,
-		// 	},
-		// 	self.offscreen_textures[self.render_texture_idx]
-		// 		.texture
-		// 		.size(),
-		// );
-
 		self.queue.submit(Some(encoder.finish()));
 
 		surface_texture.present();
@@ -664,6 +648,19 @@ impl Renderer for WgpuRenderer {
 	}
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress) {
+		self.current_interpolated_texture_size = self.prev_image_size.lerp(
+			(
+				self.to_texture.texture.width() as f32,
+				self.to_texture.texture.height() as f32,
+			),
+			progress.progress,
+		);
+		WgpuRenderer::write_scaling_data(
+			(self.config.width as f32, self.config.height as f32),
+			self.current_interpolated_texture_size,
+			&self.queue,
+			&self.scaling_data_uniform_buffer,
+		);
 		let progress = TransitionProgressUniforms::from(progress);
 		self.transition_progress = progress;
 		self.queue.write_buffer(
@@ -674,12 +671,7 @@ impl Renderer for WgpuRenderer {
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		WgpuRenderer::write_scaling_data(
-			(self.config.width, self.config.height),
-			image.dimensions(),
-			&self.queue,
-			&self.scaling_data_uniform_buffer,
-		);
+		self.prev_image_size = self.current_interpolated_texture_size;
 
 		self.to_texture = Texture::from_rgba8_with_format(
 			&self.device,
