@@ -1,7 +1,7 @@
 use crate::{random_file::select_random_file, services::TransitionService};
 use actix_web::{App, HttpServer, web};
 use calloop::channel::channel;
-use lib_wgpaper_daemon::app::{self, Commands};
+use lib_wgpaper_daemon::app::{self, Commands, GlobalOptions};
 use std::{
 	sync::{Arc, Mutex},
 	thread,
@@ -20,10 +20,6 @@ async fn main() -> std::io::Result<()> {
 	let config_for_thread = config_arc.clone();
 
 	thread::spawn(move || {
-		let shader = config_for_thread
-			.animation_shader()
-			.expect("animation_shader must be configured");
-
 		let directories = config_for_thread
 			.wallpaper_directories()
 			.expect("wallpaper_directories must be configured");
@@ -31,9 +27,13 @@ async fn main() -> std::io::Result<()> {
 		let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str])
 			.expect("failed to select random wallpaper");
 
-		let gpu_selector = config_for_thread.gpu().cloned().unwrap_or_default();
+		let options = GlobalOptions {
+			gpu_selector: config_for_thread.gpu().cloned(),
+			animation_shader_path: config_for_thread.animation_shader(),
+			initial_image_path: Some(&path),
+		};
 
-		app::start(channel, gpu_selector, shader, &path).unwrap();
+		app::start(channel, options).unwrap();
 	});
 
 	let transition_service = Arc::new(Mutex::new(TransitionService::default()));

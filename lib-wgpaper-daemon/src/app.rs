@@ -36,17 +36,20 @@ use wayland_client::{
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 
+pub struct GlobalOptions<'a> {
+	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
+	pub animation_shader_path: Option<&'a Path>,
+	pub initial_image_path: Option<&'a Path>,
+}
+
+pub struct PerOutputOptions {}
+
 #[derive(serde::Deserialize)]
 pub enum Commands {
 	StartTransition { image_path: PathBuf },
 }
 
-pub fn start(
-	channel: Channel<Commands>,
-	gpu_selector: wgpaper_config::GpuSelector,
-	animation_shader: &Path,
-	initial_image_path: &Path,
-) -> anyhow::Result<()> {
+pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Result<()> {
 	let conn = Connection::connect_to_env()?;
 	let (globals, event_queue) = registry_queue_init(&conn)?;
 	let qh = event_queue.handle();
@@ -69,13 +72,7 @@ pub fn start(
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::new(
-		globals,
-		qh,
-		gpu_selector,
-		animation_shader,
-		initial_image_path,
-	)?;
+	let mut app = App::new(globals, qh, options)?;
 
 	event_loop.run(None, &mut app, |_| {}).unwrap();
 
@@ -183,9 +180,7 @@ impl App {
 	pub fn new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
-		gpu_selector: wgpaper_config::GpuSelector,
-		animation_shader: &Path,
-		initial_image_path: &Path,
+		options: GlobalOptions,
 	) -> anyhow::Result<Self> {
 		let registry_state = RegistryState::new(&globals);
 		let seat_state = SeatState::new(&globals, &qh);
@@ -194,9 +189,17 @@ impl App {
 		let layer_shell = LayerShell::bind(&globals, &qh).context("layer shell not available")?;
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
-		let gpu_selector = GpuSelector::from(gpu_selector);
-		let animation_shader = fs::read_to_string(animation_shader)?;
-		let image = ImageWrapper::from_path(initial_image_path)?;
+		let gpu_selector = GpuSelector::from(options.gpu_selector.unwrap_or_default());
+		let animation_shader = fs::read_to_string(
+			options
+				.animation_shader_path
+				.expect("wgpaper can't run without a transition shader."),
+		)?;
+		let image = ImageWrapper::from_path(
+			&options
+				.initial_image_path
+				.expect("wgpaper can't run without an initial image."),
+		)?;
 
 		Ok(Self {
 			registry_state,
