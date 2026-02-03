@@ -21,27 +21,37 @@ use wgpu::{Buffer, Queue, SurfaceError};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct ScalingDataUniforms {
+struct PerFrameDataUniforms {
 	screen_size: [f32; 2],
 	texture_size: [f32; 2],
 	screen_aspect: f32,
 	texture_aspect: f32,
-	_padding: [u8; 232],
+	progress: [f32; 2],
+	_padding: [u8; 224],
 }
 
-impl ScalingDataUniforms {
-	fn new(screen_size: (f32, f32), texture_size: (f32, f32)) -> Self {
+impl PerFrameDataUniforms {
+	fn new(
+		screen_size: (f32, f32),
+		texture_size: (f32, f32),
+		progress: TransitionProgress,
+	) -> Self {
 		Self {
 			screen_size: unsafe { std::mem::transmute(screen_size) },
 			texture_size: unsafe { std::mem::transmute(texture_size) },
 			screen_aspect: screen_size.0 / screen_size.1,
 			texture_aspect: texture_size.0 / texture_size.1,
-			_padding: [0u8; 232],
+			progress: unsafe { std::mem::transmute(progress) },
+			_padding: [0u8; 224],
 		}
 	}
 
 	fn texture_size(&self) -> (f32, f32) {
 		unsafe { std::mem::transmute(self.texture_size) }
+	}
+
+	fn transition_progress(&self) -> TransitionProgress {
+		unsafe { std::mem::transmute(self.progress) }
 	}
 
 	fn update_screen_size(&mut self, new_size: (f32, f32)) {
@@ -52,6 +62,10 @@ impl ScalingDataUniforms {
 	fn update_texture_size(&mut self, new_size: (f32, f32)) {
 		self.texture_size = unsafe { std::mem::transmute(new_size) };
 		self.texture_aspect = new_size.0 / new_size.1;
+	}
+
+	fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
+		self.progress = unsafe { std::mem::transmute(new_progress) };
 	}
 }
 
@@ -71,17 +85,10 @@ impl TransitionProgressUniforms {
 			_padding: [0u8; 248],
 		}
 	}
-
-	fn to(&self) -> TransitionProgress {
-		TransitionProgress {
-			progress_bezier: self.progress_bezier,
-			progress_linear: self.progress_linear,
-		}
-	}
 }
 
-impl From<TransitionProgress> for TransitionProgressUniforms {
-	fn from(progress: TransitionProgress) -> Self {
+impl From<&TransitionProgress> for TransitionProgressUniforms {
+	fn from(progress: &TransitionProgress) -> Self {
 		Self::new(progress.progress_bezier, progress.progress_linear)
 	}
 }
@@ -104,15 +111,11 @@ pub struct WgpuRenderer {
 	texture_before_scaling: Texture,
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
-	scaling_data: ScalingDataUniforms,
-	scaling_data_uniform_buffer: Buffer,
-	scaling_data_bind_group: wgpu::BindGroup,
+	per_frame_data: PerFrameDataUniforms,
+	per_frame_data_uniform_buffer: Buffer,
+	per_frame_data_bind_group: wgpu::BindGroup,
 	prev_image_size: (f32, f32),
 	scaling_pipeline: wgpu::RenderPipeline,
-
-	transition_progress: TransitionProgressUniforms,
-	transition_progress_bind_group: wgpu::BindGroup,
-	transition_progress_uniform_buffer: Buffer,
 }
 
 impl WgpuRenderer {
@@ -121,7 +124,7 @@ impl WgpuRenderer {
 	const COVER_SHADER: &str = include_str!("fragment_cover.wgsl");
 	const CENTER_SHADER: &str = include_str!("fragment_center.wgsl");
 
-	fn write_scaling_data(data: &ScalingDataUniforms, queue: &Queue, buffer: &Buffer) {
+	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 	}
 }
@@ -221,20 +224,22 @@ impl Renderer for WgpuRenderer {
 			source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
 		});
 
-		let scaling_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("scaling_data_uniform_buffer"),
-			size: std::mem::size_of::<ScalingDataUniforms>() as wgpu::BufferAddress,
+		let per_frame_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("per_frame_data_uniform_buffer"),
+			size: std::mem::size_of::<PerFrameDataUniforms>() as wgpu::BufferAddress,
 			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		});
 
-		let scaling_data = ScalingDataUniforms::new(
+		let mut per_frame_data = PerFrameDataUniforms::new(
 			(width as f32, height as f32),
 			(initial_image.width() as f32, initial_image.height() as f32),
+			TransitionProgress::reset(),
 		);
-		WgpuRenderer::write_scaling_data(&scaling_data, &queue, &scaling_data_uniform_buffer);
+		WgpuRenderer::write_per_frame_data(&per_frame_data, &queue, &per_frame_data_uniform_buffer);
+		per_frame_data.update_transition_progress(TransitionProgress::finished()); // Mark that there's no ongoing transition
 
-		let scaling_data_bind_group_layout =
+		let per_frame_data_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 				entries: &[wgpu::BindGroupLayoutEntry {
 					binding: 0,
@@ -246,16 +251,16 @@ impl Renderer for WgpuRenderer {
 					},
 					count: None,
 				}],
-				label: Some("scaling_data_bind_group_layout"),
+				label: Some("per_frame_data_bind_group_layout"),
 			});
 
-		let scaling_data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &scaling_data_bind_group_layout,
+		let per_frame_data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout: &per_frame_data_bind_group_layout,
 			entries: &[wgpu::BindGroupEntry {
 				binding: 0,
-				resource: scaling_data_uniform_buffer.as_entire_binding(),
+				resource: per_frame_data_uniform_buffer.as_entire_binding(),
 			}],
-			label: Some("scaling_data_bind_group"),
+			label: Some("per_frame_data_bind_group"),
 		});
 
 		// Animation Pipeline
@@ -330,37 +335,6 @@ impl Renderer for WgpuRenderer {
 			label: Some("animation_texture_bind_group"),
 		});
 
-		let transition_progress_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("transition_progress_uniform_buffer"),
-			size: std::mem::size_of::<TransitionProgressUniforms>() as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
-
-		let transition_progress_bind_group_layout =
-			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-				entries: &[wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Uniform,
-						has_dynamic_offset: false,
-						min_binding_size: wgpu::BufferSize::new(256),
-					},
-					count: None,
-				}],
-				label: Some("transition_progress_bind_group_layout"),
-			});
-
-		let transition_progress_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &transition_progress_bind_group_layout,
-			entries: &[wgpu::BindGroupEntry {
-				binding: 0,
-				resource: transition_progress_uniform_buffer.as_entire_binding(),
-			}],
-			label: Some("transition_progress_bind_group"),
-		});
-
 		let animation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("animation_shader"),
 			source: wgpu::ShaderSource::Wgsl(animation_shader.into()),
@@ -371,8 +345,7 @@ impl Renderer for WgpuRenderer {
 				label: Some("animation_pipeline_layout"),
 				bind_group_layouts: &[
 					&animation_texture_bind_group_layout,
-					&scaling_data_bind_group_layout,
-					&transition_progress_bind_group_layout,
+					&per_frame_data_bind_group_layout,
 				],
 				immediate_size: 0,
 			});
@@ -461,7 +434,7 @@ impl Renderer for WgpuRenderer {
 				label: Some("scaling_pipeline_layout"),
 				bind_group_layouts: &[
 					&scaling_texture_bind_group_layout,
-					&scaling_data_bind_group_layout,
+					&per_frame_data_bind_group_layout,
 				],
 				immediate_size: 0,
 			});
@@ -504,8 +477,6 @@ impl Renderer for WgpuRenderer {
 		};
 		surface.configure(&device, &config);
 
-		let transition_progress = TransitionProgressUniforms::from(TransitionProgress::finished());
-
 		let image_size_f32 = (initial_image.width() as f32, initial_image.height() as f32);
 
 		Ok(Self {
@@ -526,15 +497,11 @@ impl Renderer for WgpuRenderer {
 			texture_before_scaling: scaled_texture,
 			scaling_texture_bind_group_layout,
 			scaling_texture_bind_group,
-			scaling_data,
-			scaling_data_uniform_buffer,
-			scaling_data_bind_group,
+			per_frame_data,
+			per_frame_data_uniform_buffer,
+			per_frame_data_bind_group,
 			prev_image_size: image_size_f32,
 			scaling_pipeline,
-
-			transition_progress,
-			transition_progress_bind_group,
-			transition_progress_uniform_buffer,
 		})
 	}
 
@@ -583,8 +550,7 @@ impl Renderer for WgpuRenderer {
 
 			animation_render_pass.set_pipeline(&self.animation_pipeline);
 			animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
-			animation_render_pass.set_bind_group(1, &self.scaling_data_bind_group, &[]);
-			animation_render_pass.set_bind_group(2, &self.transition_progress_bind_group, &[]);
+			animation_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
 			animation_render_pass.draw(0..3, 0..1);
 		}
 
@@ -631,7 +597,7 @@ impl Renderer for WgpuRenderer {
 
 			scaling_render_pass.set_pipeline(&self.scaling_pipeline);
 			scaling_render_pass.set_bind_group(0, &self.scaling_texture_bind_group, &[]);
-			scaling_render_pass.set_bind_group(1, &self.scaling_data_bind_group, &[]);
+			scaling_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
 			scaling_render_pass.draw(0..3, 0..1);
 		}
 
@@ -645,17 +611,17 @@ impl Renderer for WgpuRenderer {
 		self.config.width = width;
 		self.config.height = height;
 		self.surface.configure(&self.device, &self.config);
-		self.scaling_data
+		self.per_frame_data
 			.update_screen_size((width as f32, height as f32));
 		Ok(())
 	}
 
 	fn get_transition_progress(&self) -> TransitionProgress {
-		self.transition_progress.to()
+		self.per_frame_data.transition_progress()
 	}
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress) {
-		self.scaling_data
+		self.per_frame_data
 			.update_texture_size(self.prev_image_size.lerp(
 				(
 					self.to_texture.texture.width() as f32,
@@ -663,22 +629,16 @@ impl Renderer for WgpuRenderer {
 				),
 				progress.progress_bezier,
 			));
-		WgpuRenderer::write_scaling_data(
-			&self.scaling_data,
+		self.per_frame_data.update_transition_progress(progress);
+		WgpuRenderer::write_per_frame_data(
+			&self.per_frame_data,
 			&self.queue,
-			&self.scaling_data_uniform_buffer,
-		);
-		let progress = TransitionProgressUniforms::from(progress);
-		self.transition_progress = progress;
-		self.queue.write_buffer(
-			&self.transition_progress_uniform_buffer,
-			0,
-			bytemuck::bytes_of(&progress),
+			&self.per_frame_data_uniform_buffer,
 		);
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		self.prev_image_size = self.scaling_data.texture_size();
+		self.prev_image_size = self.per_frame_data.texture_size();
 
 		self.to_texture = Texture::from_rgba8_with_format(
 			&self.device,
