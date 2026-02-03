@@ -24,16 +24,34 @@ use wgpu::{Buffer, Queue, SurfaceError};
 struct ScalingDataUniforms {
 	screen_size: [f32; 2],
 	texture_size: [f32; 2],
-	_padding: [u8; 240],
+	screen_aspect: f32,
+	texture_aspect: f32,
+	_padding: [u8; 232],
 }
 
 impl ScalingDataUniforms {
 	fn new(screen_size: (f32, f32), texture_size: (f32, f32)) -> Self {
 		Self {
-			screen_size: [screen_size.0, screen_size.1],
-			texture_size: [texture_size.0, texture_size.1],
-			_padding: [0u8; 240],
+			screen_size: unsafe { std::mem::transmute(screen_size) },
+			texture_size: unsafe { std::mem::transmute(texture_size) },
+			screen_aspect: screen_size.0 / screen_size.1,
+			texture_aspect: texture_size.0 / texture_size.1,
+			_padding: [0u8; 232],
 		}
+	}
+
+	fn texture_size(&self) -> (f32, f32) {
+		unsafe { std::mem::transmute(self.texture_size) }
+	}
+
+	fn update_screen_size(&mut self, new_size: (f32, f32)) {
+		self.screen_size = unsafe { std::mem::transmute(new_size) };
+		self.screen_aspect = new_size.0 / new_size.1;
+	}
+
+	fn update_texture_size(&mut self, new_size: (f32, f32)) {
+		self.texture_size = unsafe { std::mem::transmute(new_size) };
+		self.texture_aspect = new_size.0 / new_size.1;
 	}
 }
 
@@ -86,10 +104,10 @@ pub struct WgpuRenderer {
 	texture_before_scaling: Texture,
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
+	scaling_data: ScalingDataUniforms,
 	scaling_data_uniform_buffer: Buffer,
 	scaling_data_bind_group: wgpu::BindGroup,
 	prev_image_size: (f32, f32),
-	current_interpolated_texture_size: (f32, f32),
 	scaling_pipeline: wgpu::RenderPipeline,
 
 	transition_progress: TransitionProgressUniforms,
@@ -103,20 +121,8 @@ impl WgpuRenderer {
 	const COVER_SHADER: &str = include_str!("fragment_cover.wgsl");
 	const CENTER_SHADER: &str = include_str!("fragment_center.wgsl");
 
-	fn write_scaling_data(
-		screen_size: (f32, f32),
-		texture_size: (f32, f32),
-		queue: &Queue,
-		buffer: &Buffer,
-	) {
-		queue.write_buffer(
-			&buffer,
-			0,
-			bytemuck::bytes_of(&ScalingDataUniforms::new(
-				(screen_size.0, screen_size.1),
-				(texture_size.0, texture_size.1),
-			)),
-		);
+	fn write_scaling_data(data: &ScalingDataUniforms, queue: &Queue, buffer: &Buffer) {
+		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 	}
 }
 
@@ -222,12 +228,11 @@ impl Renderer for WgpuRenderer {
 			mapped_at_creation: false,
 		});
 
-		WgpuRenderer::write_scaling_data(
+		let scaling_data = ScalingDataUniforms::new(
 			(width as f32, height as f32),
 			(initial_image.width() as f32, initial_image.height() as f32),
-			&queue,
-			&scaling_data_uniform_buffer,
 		);
+		WgpuRenderer::write_scaling_data(&scaling_data, &queue, &scaling_data_uniform_buffer);
 
 		let scaling_data_bind_group_layout =
 			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -521,10 +526,10 @@ impl Renderer for WgpuRenderer {
 			texture_before_scaling: scaled_texture,
 			scaling_texture_bind_group_layout,
 			scaling_texture_bind_group,
+			scaling_data,
 			scaling_data_uniform_buffer,
 			scaling_data_bind_group,
 			prev_image_size: image_size_f32,
-			current_interpolated_texture_size: image_size_f32,
 			scaling_pipeline,
 
 			transition_progress,
@@ -640,6 +645,8 @@ impl Renderer for WgpuRenderer {
 		self.config.width = width;
 		self.config.height = height;
 		self.surface.configure(&self.device, &self.config);
+		self.scaling_data
+			.update_screen_size((width as f32, height as f32));
 		Ok(())
 	}
 
@@ -648,16 +655,16 @@ impl Renderer for WgpuRenderer {
 	}
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress) {
-		self.current_interpolated_texture_size = self.prev_image_size.lerp(
-			(
-				self.to_texture.texture.width() as f32,
-				self.to_texture.texture.height() as f32,
-			),
-			progress.progress,
-		);
+		self.scaling_data
+			.update_texture_size(self.prev_image_size.lerp(
+				(
+					self.to_texture.texture.width() as f32,
+					self.to_texture.texture.height() as f32,
+				),
+				progress.progress,
+			));
 		WgpuRenderer::write_scaling_data(
-			(self.config.width as f32, self.config.height as f32),
-			self.current_interpolated_texture_size,
+			&self.scaling_data,
 			&self.queue,
 			&self.scaling_data_uniform_buffer,
 		);
@@ -671,7 +678,7 @@ impl Renderer for WgpuRenderer {
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		self.prev_image_size = self.current_interpolated_texture_size;
+		self.prev_image_size = self.scaling_data.texture_size();
 
 		self.to_texture = Texture::from_rgba8_with_format(
 			&self.device,
