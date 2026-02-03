@@ -2,25 +2,25 @@ use keyframe::{AnimationSequence, functions::BezierCurve, keyframes, mint::Vecto
 use std::time::Duration;
 
 pub struct TransitionProgress {
-	pub progress: f32,
-	pub progress_clamped: f32,
+	pub progress_bezier: f32,
+	pub progress_linear: f32,
 }
 
 impl TransitionProgress {
 	pub fn reset() -> Self {
 		Self {
-			progress: 0.0,
-			progress_clamped: 0.0,
+			progress_bezier: 0.0,
+			progress_linear: 0.0,
 		}
 	}
 	pub fn finished() -> Self {
 		Self {
-			progress: 1.0,
-			progress_clamped: 1.0,
+			progress_bezier: 1.0,
+			progress_linear: 1.0,
 		}
 	}
 	pub fn is_finished(&self) -> bool {
-		self.progress == 1.0 && self.progress_clamped >= 1.0
+		self.progress_bezier == 1.0 && self.progress_linear >= 1.0
 	}
 }
 
@@ -49,8 +49,8 @@ impl Transition {
 		let transition_progress_clamped = timestamp.as_secs_f32() / self.sequence.duration() as f32;
 		self.sequence.advance_to(timestamp.as_secs_f64());
 		TransitionProgress {
-			progress: self.sequence.now(),
-			progress_clamped: transition_progress_clamped,
+			progress_bezier: self.sequence.now(),
+			progress_linear: transition_progress_clamped,
 		}
 	}
 }

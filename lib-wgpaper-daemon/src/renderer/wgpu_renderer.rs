@@ -58,31 +58,31 @@ impl ScalingDataUniforms {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct TransitionProgressUniforms {
-	progress: f32,
-	progress_clamped: f32,
+	progress_bezier: f32,
+	progress_linear: f32,
 	_padding: [u8; 248],
 }
 
 impl TransitionProgressUniforms {
 	fn new(progress: f32, progress_clamped: f32) -> Self {
 		Self {
-			progress,
-			progress_clamped,
+			progress_bezier: progress,
+			progress_linear: progress_clamped,
 			_padding: [0u8; 248],
 		}
 	}
 
 	fn to(&self) -> TransitionProgress {
 		TransitionProgress {
-			progress: self.progress,
-			progress_clamped: self.progress_clamped,
+			progress_bezier: self.progress_bezier,
+			progress_linear: self.progress_linear,
 		}
 	}
 }
 
 impl From<TransitionProgress> for TransitionProgressUniforms {
 	fn from(progress: TransitionProgress) -> Self {
-		Self::new(progress.progress, progress.progress_clamped)
+		Self::new(progress.progress_bezier, progress.progress_linear)
 	}
 }
 
@@ -661,7 +661,7 @@ impl Renderer for WgpuRenderer {
 					self.to_texture.texture.width() as f32,
 					self.to_texture.texture.height() as f32,
 				),
-				progress.progress,
+				progress.progress_bezier,
 			));
 		WgpuRenderer::write_scaling_data(
 			&self.scaling_data,
