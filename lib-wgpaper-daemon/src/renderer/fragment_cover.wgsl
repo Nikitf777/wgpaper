@@ -15,6 +15,7 @@ struct PerFrameDataUniforms {
     texture_aspect: f32,
     progress_bezier: f32,
     progress_linear: f32,
+    bg_color: vec4<f32>
 };
 @group(1) @binding(0)
 var<uniform> per_frame: PerFrameDataUniforms;

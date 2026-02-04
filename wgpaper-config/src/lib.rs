@@ -1,4 +1,5 @@
 use const_format::formatcp;
+use csscolorparser::Color;
 use serde::Deserialize;
 use std::{
 	env, fs,
@@ -38,6 +39,7 @@ impl Default for GpuSelector {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DeviceType {
 	Other,
 	#[default]
@@ -45,6 +47,21 @@ pub enum DeviceType {
 	DiscreteGpu,
 	VirtualGpu,
 	Cpu,
+}
+
+#[derive(Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Background {
+	AutoColor,
+	CssColor(Color),
+	Repeat,
+	MirrorRepeat,
+}
+
+impl Default for Background {
+	fn default() -> Self {
+		Self::CssColor(csscolorparser::NAMED_COLORS["black".into()].into())
+	}
 }
 
 #[derive(Deserialize)]
@@ -56,6 +73,7 @@ pub struct Config {
 	scaling_strategy: Option<ScalingStrategy>,
 	listen_socket: Option<ListenSocket>,
 	gpu: Option<GpuSelector>,
+	background: Option<Background>,
 }
 
 impl Config {
@@ -119,5 +137,10 @@ impl Config {
 	/// Returns the GPU configuration if set
 	pub fn gpu(&self) -> Option<&GpuSelector> {
 		self.gpu.as_ref()
+	}
+
+	/// Returns the background configuration if set
+	pub fn background(&self) -> Option<&Background> {
+		self.background.as_ref()
 	}
 }

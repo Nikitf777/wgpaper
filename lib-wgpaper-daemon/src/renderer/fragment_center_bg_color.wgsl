@@ -23,14 +23,11 @@ var<uniform> per_frame: PerFrameDataUniforms;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var uv = in.tex_coords;
-    if (per_frame.texture_aspect > per_frame.screen_aspect) {
-        // Width is limiting factor -> stretch vertically
-        let ratio = per_frame.texture_aspect / per_frame.screen_aspect; // > 1.0
-        uv = (uv - 0.5) * vec2<f32>(1.0, ratio) + 0.5;
-    } else {
-        // Height is limiting factor -> stretch horizontally
-        let ratio = per_frame.screen_aspect / per_frame.texture_aspect; // > 1.0
-        uv = (uv - 0.5) * vec2<f32>(ratio, 1.0) + 0.5;
-    }
+    // Maps screen pixels directly to texture pixels, centered.
+    let scale_vec = per_frame.screen_size / per_frame.texture_size;
+    let offset_vec = (per_frame.screen_size - per_frame.texture_size) * 0.5 / per_frame.texture_size;
+    uv = uv * scale_vec - offset_vec;
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { return per_frame.bg_color; }
+
     return textureSample(texture, texture_sampler, uv);
 }

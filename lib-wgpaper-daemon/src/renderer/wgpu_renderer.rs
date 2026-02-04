@@ -9,6 +9,7 @@ use crate::{
 	transition::TransitionProgress,
 };
 use anyhow::Context;
+use csscolorparser::Color;
 use pollster::FutureExt;
 use raw_window_handle::{
 	RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
@@ -16,7 +17,7 @@ use raw_window_handle::{
 use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
-use wgpaper_config::ScalingStrategy;
+use wgpaper_config::{Background, ScalingStrategy};
 use wgpu::{Buffer, Queue, SurfaceError};
 
 #[repr(C)]
@@ -27,6 +28,7 @@ struct PerFrameDataUniforms {
 	screen_aspect: f32,
 	texture_aspect: f32,
 	progress: [f32; 2],
+	bg_color: [f32; 4],
 	_padding: [u8; 224],
 }
 
@@ -35,6 +37,7 @@ impl PerFrameDataUniforms {
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
+		bg_color: Color,
 	) -> Self {
 		Self {
 			screen_size: unsafe { std::mem::transmute(screen_size) },
@@ -42,6 +45,7 @@ impl PerFrameDataUniforms {
 			screen_aspect: screen_size.0 / screen_size.1,
 			texture_aspect: texture_size.0 / texture_size.1,
 			progress: unsafe { std::mem::transmute(progress) },
+			bg_color: unsafe { std::mem::transmute(bg_color) },
 			_padding: [0u8; 224],
 		}
 	}
@@ -121,8 +125,10 @@ pub struct WgpuRenderer {
 impl WgpuRenderer {
 	const STRETCH_SHADER: &str = include_str!("fragment_stretch.wgsl");
 	const FIT_SHADER: &str = include_str!("fragment_fit.wgsl");
+	const FIT_BG_SHADER: &str = include_str!("fragment_fit_bg_color.wgsl");
 	const COVER_SHADER: &str = include_str!("fragment_cover.wgsl");
 	const CENTER_SHADER: &str = include_str!("fragment_center.wgsl");
+	const CENTER_BG_SHADER: &str = include_str!("fragment_center_bg_color.wgsl");
 
 	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
@@ -133,11 +139,24 @@ impl WgpuRenderer {
 	fn create_scaling_fragment_shader(
 		device: &wgpu::Device,
 		strategy: ScalingStrategy,
+		with_bg_color: bool,
 	) -> wgpu::ShaderModule {
 		let shader = match strategy {
 			ScalingStrategy::Stretch => Self::STRETCH_SHADER,
-			ScalingStrategy::Fit => Self::FIT_SHADER,
-			ScalingStrategy::Center => Self::CENTER_SHADER,
+			ScalingStrategy::Fit => {
+				if with_bg_color {
+					Self::FIT_BG_SHADER
+				} else {
+					Self::FIT_SHADER
+				}
+			}
+			ScalingStrategy::Center => {
+				if with_bg_color {
+					Self::CENTER_BG_SHADER
+				} else {
+					Self::CENTER_SHADER
+				}
+			}
 			ScalingStrategy::Cover => Self::COVER_SHADER,
 		};
 
@@ -157,6 +176,7 @@ impl Renderer for WgpuRenderer {
 		gpu_selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
+		background: &Background,
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 			backends: wgpu::Backends::PRIMARY,
@@ -209,10 +229,15 @@ impl Renderer for WgpuRenderer {
 
 		let data = vec![0u8; (width * height * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
+		let address_mode = if background == &Background::Repeat {
+			wgpu::AddressMode::Repeat
+		} else {
+			wgpu::AddressMode::MirrorRepeat
+		};
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("sampler"),
-			address_mode_u: wgpu::AddressMode::Repeat,
-			address_mode_v: wgpu::AddressMode::Repeat,
+			address_mode_u: address_mode,
+			address_mode_v: address_mode,
 			mag_filter: wgpu::FilterMode::Linear,
 			min_filter: wgpu::FilterMode::Linear,
 			mipmap_filter: wgpu::MipmapFilterMode::Nearest,
@@ -231,10 +256,17 @@ impl Renderer for WgpuRenderer {
 			mapped_at_creation: false,
 		});
 
+		let bg_color = match background {
+			Background::AutoColor => Color::default(),
+			Background::CssColor(color) => color.clone(),
+			Background::Repeat => Color::default(),
+			Background::MirrorRepeat => Color::default(),
+		};
 		let mut per_frame_data = PerFrameDataUniforms::new(
 			(width as f32, height as f32),
 			(initial_image.width() as f32, initial_image.height() as f32),
 			TransitionProgress::reset(),
+			bg_color,
 		);
 		WgpuRenderer::write_per_frame_data(&per_frame_data, &queue, &per_frame_data_uniform_buffer);
 		per_frame_data.update_transition_progress(TransitionProgress::finished()); // Mark that there's no ongoing transition
@@ -427,7 +459,9 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let scaling_fragment_shader =
-			WgpuRenderer::create_scaling_fragment_shader(&device, ScalingStrategy::default());
+			WgpuRenderer::create_scaling_fragment_shader(&device, ScalingStrategy::default(), {
+				background != &Background::MirrorRepeat && background != &Background::Repeat
+			});
 
 		let scaling_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

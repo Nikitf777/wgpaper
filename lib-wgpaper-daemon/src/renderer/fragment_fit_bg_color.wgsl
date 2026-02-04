@@ -32,5 +32,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let ratio = per_frame.screen_aspect / per_frame.texture_aspect; // > 1.0
         uv = (uv - 0.5) * vec2<f32>(ratio, 1.0) + 0.5;
     }
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { return per_frame.bg_color; }
+
     return textureSample(texture, texture_sampler, uv);
 }
