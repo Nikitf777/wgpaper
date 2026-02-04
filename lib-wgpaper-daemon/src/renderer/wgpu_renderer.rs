@@ -18,7 +18,7 @@ use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
-use wgpu::{Buffer, Queue, SurfaceError};
+use wgpu::{Buffer, CommandEncoder, Queue, SurfaceError};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -112,7 +112,7 @@ pub struct WgpuRenderer {
 	animation_texture_bind_group: wgpu::BindGroup,
 	animation_pipeline: wgpu::RenderPipeline,
 
-	texture_before_scaling: Texture,
+	scaled_texture: Texture,
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
 	per_frame_data: PerFrameDataUniforms,
@@ -133,20 +133,39 @@ impl WgpuRenderer {
 	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 	}
-}
 
-impl WgpuRenderer {
+	fn get_address_mode_and_bg_color(scaling_mode: &ScalingMode) -> (wgpu::AddressMode, Color) {
+		match scaling_mode {
+			ScalingMode::Fit { background } | ScalingMode::Center { background } => {
+				if background == &Background::Repeat {
+					(wgpu::AddressMode::Repeat, Color::default())
+				} else {
+					(
+						wgpu::AddressMode::MirrorRepeat,
+						if let Background::CssColor(color) = background {
+							color.clone()
+						} else {
+							Color::default()
+						},
+					)
+				}
+			}
+			ScalingMode::Stretch | ScalingMode::Cover => {
+				(wgpu::AddressMode::MirrorRepeat, Color::default())
+			}
+		}
+	}
+
 	fn create_scaling_fragment_shader(
 		device: &wgpu::Device,
 		mode: &ScalingMode,
 	) -> wgpu::ShaderModule {
-		let (shader, name) = match mode {
-			ScalingMode::Stretch => (Self::STRETCH_SHADER, "stretch"),
+		let (shader, name_postfix) = match mode {
 			ScalingMode::Fit { background } => {
 				if matches!(background, Background::AutoColor)
 					|| matches!(background, Background::CssColor(_))
 				{
-					(Self::FIT_BG_SHADER, "fit_bg")
+					(Self::FIT_BG_SHADER, "fit_bg_color")
 				} else {
 					(Self::FIT_SHADER, "fit")
 				}
@@ -155,18 +174,77 @@ impl WgpuRenderer {
 				if matches!(background, Background::AutoColor)
 					|| matches!(background, Background::CssColor(_))
 				{
-					(Self::CENTER_BG_SHADER, "center_bg")
+					(Self::CENTER_BG_SHADER, "center_bg_color")
 				} else {
 					(Self::CENTER_SHADER, "center")
 				}
 			}
+			ScalingMode::Stretch => (Self::STRETCH_SHADER, "stretch"),
 			ScalingMode::Cover => (Self::COVER_SHADER, "cover"),
 		};
 
 		device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some(&format!("scaling_fragment_shader_{}", name)),
+			label: Some(&format!("scaling_fragment_shader_{}", name_postfix)),
 			source: wgpu::ShaderSource::Wgsl(shader.into()),
 		})
+	}
+
+	fn render_scale(&self, encoder: &mut CommandEncoder) {
+		let mut scaling_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			label: Some("scaling_render_pass"),
+			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+				view: &self.scaled_texture.view,
+				resolve_target: None,
+				ops: wgpu::Operations {
+					load: wgpu::LoadOp::Clear(wgpu::Color {
+						r: 0.1,
+						g: 0.2,
+						b: 0.3,
+						a: 1.0,
+					}),
+					store: wgpu::StoreOp::Store,
+				},
+				depth_slice: None,
+			})],
+			depth_stencil_attachment: None,
+			timestamp_writes: None,
+			occlusion_query_set: None,
+			multiview_mask: None,
+		});
+
+		scaling_render_pass.set_pipeline(&self.scaling_pipeline);
+		scaling_render_pass.set_bind_group(0, &self.scaling_texture_bind_group, &[]);
+		scaling_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
+		scaling_render_pass.draw(0..3, 0..1);
+	}
+
+	fn render_animation(&self, encoder: &mut CommandEncoder) {
+		let mut animation_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			label: Some("animation_render_pass"),
+			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+				view: &self.offscreen_textures[self.render_texture_idx].view,
+				resolve_target: None,
+				ops: wgpu::Operations {
+					load: wgpu::LoadOp::Clear(wgpu::Color {
+						r: 0.1,
+						g: 0.2,
+						b: 0.3,
+						a: 1.0,
+					}),
+					store: wgpu::StoreOp::Store,
+				},
+				depth_slice: None,
+			})],
+			depth_stencil_attachment: None,
+			timestamp_writes: None,
+			occlusion_query_set: None,
+			multiview_mask: None,
+		});
+
+		animation_render_pass.set_pipeline(&self.animation_pipeline);
+		animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
+		animation_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
+		animation_render_pass.draw(0..3, 0..1);
 	}
 }
 
@@ -232,25 +310,7 @@ impl Renderer for WgpuRenderer {
 
 		let data = vec![0u8; (width * height * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
-		let (address_mode, bg_color) = match scaling_mode {
-			ScalingMode::Fit { background } | ScalingMode::Center { background } => {
-				if background == &Background::Repeat {
-					(wgpu::AddressMode::Repeat, Color::default())
-				} else {
-					(
-						wgpu::AddressMode::MirrorRepeat,
-						if let Background::CssColor(color) = background {
-							color.clone()
-						} else {
-							Color::default()
-						},
-					)
-				}
-			}
-			ScalingMode::Stretch | ScalingMode::Cover => {
-				(wgpu::AddressMode::MirrorRepeat, Color::default())
-			}
-		};
+		let (address_mode, bg_color) = Self::get_address_mode_and_bg_color(scaling_mode);
 
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("sampler"),
@@ -304,119 +364,6 @@ impl Renderer for WgpuRenderer {
 				resource: per_frame_data_uniform_buffer.as_entire_binding(),
 			}],
 			label: Some("per_frame_data_bind_group"),
-		});
-
-		// Animation Pipeline
-		let offscreen_textures = (0..3)
-			.map(|i| {
-				Texture::from_rgba8_with_format(
-					&device,
-					&queue,
-					width,
-					height,
-					&data,
-					&format!("offscreen_texture_{}", i),
-					surface_format,
-				)
-				.unwrap()
-			})
-			.collect::<Vec<_>>();
-		let display_texture_idx: usize = 0;
-		let render_texture_idx: usize = 1;
-
-		let animation_texture_bind_group_layout =
-			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-				entries: &[
-					wgpu::BindGroupLayoutEntry {
-						binding: 0,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Texture {
-							multisampled: false,
-							sample_type: wgpu::TextureSampleType::Float { filterable: true },
-							view_dimension: wgpu::TextureViewDimension::D2,
-						},
-						count: None,
-					},
-					wgpu::BindGroupLayoutEntry {
-						binding: 1,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Texture {
-							multisampled: false,
-							sample_type: wgpu::TextureSampleType::Float { filterable: true },
-							view_dimension: wgpu::TextureViewDimension::D2,
-						},
-						count: None,
-					},
-					wgpu::BindGroupLayoutEntry {
-						binding: 2,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-						count: None,
-					},
-				],
-				label: Some("animation_texture_bind_group_layout"),
-			});
-
-		let animation_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &animation_texture_bind_group_layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::TextureView(&initial_texture.view),
-				},
-				wgpu::BindGroupEntry {
-					binding: 1,
-					resource: wgpu::BindingResource::TextureView(
-						&offscreen_textures[display_texture_idx].view,
-					),
-				},
-				wgpu::BindGroupEntry {
-					binding: 2,
-					resource: wgpu::BindingResource::Sampler(&sampler),
-				},
-			],
-			label: Some("animation_texture_bind_group"),
-		});
-
-		let animation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("animation_shader"),
-			source: wgpu::ShaderSource::Wgsl(animation_shader.into()),
-		});
-
-		let animation_pipeline_layout =
-			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-				label: Some("animation_pipeline_layout"),
-				bind_group_layouts: &[
-					&animation_texture_bind_group_layout,
-					&per_frame_data_bind_group_layout,
-				],
-				immediate_size: 0,
-			});
-
-		let animation_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-			label: Some("animation_pipeline"),
-			layout: Some(&animation_pipeline_layout),
-			vertex: wgpu::VertexState {
-				module: &vertex_shader,
-				entry_point: Some("vs_main"),
-				buffers: &[],
-				compilation_options: Default::default(),
-			},
-			fragment: Some(wgpu::FragmentState {
-				module: &animation_shader,
-				entry_point: Some("fs_main"),
-				targets: &[Some(wgpu::ColorTargetState {
-					format: surface_format,
-					blend: Some(wgpu::BlendState::REPLACE),
-					write_mask: wgpu::ColorWrites::ALL,
-				})],
-				compilation_options: Default::default(),
-			}),
-			primitive: wgpu::PrimitiveState::default(),
-			depth_stencil: None,
-			multisample: wgpu::MultisampleState::default(),
-			multiview_mask: None,
-			cache: None,
 		});
 
 		// Scaling Pipeline
@@ -508,6 +455,119 @@ impl Renderer for WgpuRenderer {
 			cache: None,
 		});
 
+		// Animation Pipeline
+		let offscreen_textures = (0..3)
+			.map(|i| {
+				Texture::from_rgba8_with_format(
+					&device,
+					&queue,
+					width,
+					height,
+					&data,
+					&format!("offscreen_texture_{}", i),
+					surface_format,
+				)
+				.unwrap()
+			})
+			.collect::<Vec<_>>();
+		let display_texture_idx: usize = 0;
+		let render_texture_idx: usize = 1;
+
+		let animation_texture_bind_group_layout =
+			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+				entries: &[
+					wgpu::BindGroupLayoutEntry {
+						binding: 0,
+						visibility: wgpu::ShaderStages::FRAGMENT,
+						ty: wgpu::BindingType::Texture {
+							multisampled: false,
+							sample_type: wgpu::TextureSampleType::Float { filterable: true },
+							view_dimension: wgpu::TextureViewDimension::D2,
+						},
+						count: None,
+					},
+					wgpu::BindGroupLayoutEntry {
+						binding: 1,
+						visibility: wgpu::ShaderStages::FRAGMENT,
+						ty: wgpu::BindingType::Texture {
+							multisampled: false,
+							sample_type: wgpu::TextureSampleType::Float { filterable: true },
+							view_dimension: wgpu::TextureViewDimension::D2,
+						},
+						count: None,
+					},
+					wgpu::BindGroupLayoutEntry {
+						binding: 2,
+						visibility: wgpu::ShaderStages::FRAGMENT,
+						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+						count: None,
+					},
+				],
+				label: Some("animation_texture_bind_group_layout"),
+			});
+
+		let animation_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout: &animation_texture_bind_group_layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: wgpu::BindingResource::TextureView(&scaled_texture.view),
+				},
+				wgpu::BindGroupEntry {
+					binding: 1,
+					resource: wgpu::BindingResource::TextureView(
+						&offscreen_textures[display_texture_idx].view,
+					),
+				},
+				wgpu::BindGroupEntry {
+					binding: 2,
+					resource: wgpu::BindingResource::Sampler(&sampler),
+				},
+			],
+			label: Some("animation_texture_bind_group"),
+		});
+
+		let animation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+			label: Some("animation_shader"),
+			source: wgpu::ShaderSource::Wgsl(animation_shader.into()),
+		});
+
+		let animation_pipeline_layout =
+			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+				label: Some("animation_pipeline_layout"),
+				bind_group_layouts: &[
+					&animation_texture_bind_group_layout,
+					&per_frame_data_bind_group_layout,
+				],
+				immediate_size: 0,
+			});
+
+		let animation_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+			label: Some("animation_pipeline"),
+			layout: Some(&animation_pipeline_layout),
+			vertex: wgpu::VertexState {
+				module: &vertex_shader,
+				entry_point: Some("vs_main"),
+				buffers: &[],
+				compilation_options: Default::default(),
+			},
+			fragment: Some(wgpu::FragmentState {
+				module: &animation_shader,
+				entry_point: Some("fs_main"),
+				targets: &[Some(wgpu::ColorTargetState {
+					format: surface_format,
+					blend: Some(wgpu::BlendState::REPLACE),
+					write_mask: wgpu::ColorWrites::ALL,
+				})],
+				compilation_options: Default::default(),
+			}),
+			primitive: wgpu::PrimitiveState::default(),
+			depth_stencil: None,
+			multisample: wgpu::MultisampleState::default(),
+			multiview_mask: None,
+			cache: None,
+		});
+
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
 			format: surface_format,
@@ -537,7 +597,7 @@ impl Renderer for WgpuRenderer {
 			animation_pipeline,
 
 			sampler,
-			texture_before_scaling: scaled_texture,
+			scaled_texture,
 			scaling_texture_bind_group_layout,
 			scaling_texture_bind_group,
 			per_frame_data,
@@ -557,9 +617,6 @@ impl Renderer for WgpuRenderer {
 			}
 			Err(e) => return Err(anyhow::anyhow!("Failed to acquire next texture: {}", e)),
 		};
-		let surface_view = surface_texture
-			.texture
-			.create_view(&wgpu::TextureViewDescriptor::default());
 
 		let mut encoder = self
 			.device
@@ -567,45 +624,18 @@ impl Renderer for WgpuRenderer {
 				label: Some("encoder"),
 			});
 
-		{
-			let mut animation_render_pass =
-				encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-					label: Some("animation_render_pass"),
-					color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-						view: &self.texture_before_scaling.view,
-						resolve_target: None,
-						ops: wgpu::Operations {
-							load: wgpu::LoadOp::Clear(wgpu::Color {
-								r: 0.1,
-								g: 0.2,
-								b: 0.3,
-								a: 1.0,
-							}),
-							store: wgpu::StoreOp::Store,
-						},
-						depth_slice: None,
-					})],
-					depth_stencil_attachment: None,
-					timestamp_writes: None,
-					occlusion_query_set: None,
-					multiview_mask: None,
-				});
-
-			animation_render_pass.set_pipeline(&self.animation_pipeline);
-			animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
-			animation_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
-			animation_render_pass.draw(0..3, 0..1);
-		}
+		self.render_scale(&mut encoder);
+		self.render_animation(&mut encoder);
 
 		encoder.copy_texture_to_texture(
 			wgpu::TexelCopyTextureInfo {
-				texture: &self.texture_before_scaling.texture,
+				texture: &self.offscreen_textures[self.render_texture_idx].texture,
 				mip_level: 0,
 				origin: wgpu::Origin3d::ZERO,
 				aspect: wgpu::TextureAspect::All,
 			},
 			wgpu::TexelCopyTextureInfo {
-				texture: &self.offscreen_textures[self.render_texture_idx].texture,
+				texture: &surface_texture.texture,
 				mip_level: 0,
 				origin: wgpu::Origin3d::ZERO,
 				aspect: wgpu::TextureAspect::All,
@@ -614,35 +644,6 @@ impl Renderer for WgpuRenderer {
 				.texture
 				.size(),
 		);
-
-		{
-			let mut scaling_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-				label: Some("scaling_render_pass"),
-				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-					view: &surface_view,
-					resolve_target: None,
-					ops: wgpu::Operations {
-						load: wgpu::LoadOp::Clear(wgpu::Color {
-							r: 0.1,
-							g: 0.2,
-							b: 0.3,
-							a: 1.0,
-						}),
-						store: wgpu::StoreOp::Store,
-					},
-					depth_slice: None,
-				})],
-				depth_stencil_attachment: None,
-				timestamp_writes: None,
-				occlusion_query_set: None,
-				multiview_mask: None,
-			});
-
-			scaling_render_pass.set_pipeline(&self.scaling_pipeline);
-			scaling_render_pass.set_bind_group(0, &self.scaling_texture_bind_group, &[]);
-			scaling_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
-			scaling_render_pass.draw(0..3, 0..1);
-		}
 
 		self.queue.submit(Some(encoder.finish()));
 
@@ -703,9 +704,7 @@ impl Renderer for WgpuRenderer {
 				entries: &[
 					wgpu::BindGroupEntry {
 						binding: 0,
-						resource: wgpu::BindingResource::TextureView(
-							&self.texture_before_scaling.view,
-						),
+						resource: wgpu::BindingResource::TextureView(&self.to_texture.view),
 					},
 					wgpu::BindGroupEntry {
 						binding: 1,
@@ -727,7 +726,7 @@ impl Renderer for WgpuRenderer {
 					},
 					wgpu::BindGroupEntry {
 						binding: 1,
-						resource: wgpu::BindingResource::TextureView(&self.to_texture.view),
+						resource: wgpu::BindingResource::TextureView(&self.scaled_texture.view),
 					},
 					wgpu::BindGroupEntry {
 						binding: 2,
