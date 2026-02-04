@@ -6,16 +6,22 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default, strum_macros::Display)]
-pub enum ScalingStrategy {
+#[derive(Deserialize, Clone, PartialEq, Default, strum_macros::Display)]
+#[serde(rename_all = "snake_case")]
+pub enum ScalingMode {
 	Stretch,
-	Fit,
+	Fit {
+		background: Background,
+	},
 	#[default]
 	Cover,
-	Center,
+	Center {
+		background: Background,
+	},
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
 pub enum ListenSocket {
 	IP { address: String },
 	UDS { path: PathBuf },
@@ -70,10 +76,9 @@ pub struct Config {
 	initial_wallpaper: Option<PathBuf>,
 	wallpaper_directories: Option<Vec<PathBuf>>,
 	image_extensions: Option<Vec<String>>,
-	scaling_strategy: Option<ScalingStrategy>,
+	scaling_mode: Option<ScalingMode>,
 	listen_socket: Option<ListenSocket>,
 	gpu: Option<GpuSelector>,
-	background: Option<Background>,
 }
 
 impl Config {
@@ -125,8 +130,8 @@ impl Config {
 	}
 
 	/// Returns the scaling strategy if configured
-	pub fn scaling_strategy(&self) -> Option<ScalingStrategy> {
-		self.scaling_strategy.clone()
+	pub fn scaling_mode(&self) -> Option<&ScalingMode> {
+		self.scaling_mode.as_ref()
 	}
 
 	/// Returns the listen socket configuration if set
@@ -137,10 +142,5 @@ impl Config {
 	/// Returns the GPU configuration if set
 	pub fn gpu(&self) -> Option<&GpuSelector> {
 		self.gpu.as_ref()
-	}
-
-	/// Returns the background configuration if set
-	pub fn background(&self) -> Option<&Background> {
-		self.background.as_ref()
 	}
 }

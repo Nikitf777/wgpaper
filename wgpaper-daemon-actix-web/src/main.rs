@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
 			gpu_selector: config_for_thread.gpu().cloned(),
 			animation_shader_path: config_for_thread.animation_shader(),
 			initial_image_path: Some(&path),
-			background: config_for_thread.background().cloned(),
+			scaling_mode: config_for_thread.scaling_mode().cloned(),
 		};
 
 		app::start(channel, options).unwrap();

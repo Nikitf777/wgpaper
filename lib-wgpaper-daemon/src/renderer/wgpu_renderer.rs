@@ -17,7 +17,7 @@ use raw_window_handle::{
 use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
-use wgpaper_config::{Background, ScalingStrategy};
+use wgpaper_config::{Background, ScalingMode};
 use wgpu::{Buffer, Queue, SurfaceError};
 
 #[repr(C)]
@@ -138,30 +138,33 @@ impl WgpuRenderer {
 impl WgpuRenderer {
 	fn create_scaling_fragment_shader(
 		device: &wgpu::Device,
-		strategy: ScalingStrategy,
-		with_bg_color: bool,
+		mode: &ScalingMode,
 	) -> wgpu::ShaderModule {
-		let shader = match strategy {
-			ScalingStrategy::Stretch => Self::STRETCH_SHADER,
-			ScalingStrategy::Fit => {
-				if with_bg_color {
-					Self::FIT_BG_SHADER
+		let (shader, name) = match mode {
+			ScalingMode::Stretch => (Self::STRETCH_SHADER, "stretch"),
+			ScalingMode::Fit { background } => {
+				if matches!(background, Background::AutoColor)
+					|| matches!(background, Background::CssColor(_))
+				{
+					(Self::FIT_BG_SHADER, "fit_bg")
 				} else {
-					Self::FIT_SHADER
+					(Self::FIT_SHADER, "fit")
 				}
 			}
-			ScalingStrategy::Center => {
-				if with_bg_color {
-					Self::CENTER_BG_SHADER
+			ScalingMode::Center { background } => {
+				if matches!(background, Background::AutoColor)
+					|| matches!(background, Background::CssColor(_))
+				{
+					(Self::CENTER_BG_SHADER, "center_bg")
 				} else {
-					Self::CENTER_SHADER
+					(Self::CENTER_SHADER, "center")
 				}
 			}
-			ScalingStrategy::Cover => Self::COVER_SHADER,
+			ScalingMode::Cover => (Self::COVER_SHADER, "cover"),
 		};
 
 		device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some(&format!("scaling_fragment_shader_{}", strategy)),
+			label: Some(&format!("scaling_fragment_shader_{}", name)),
 			source: wgpu::ShaderSource::Wgsl(shader.into()),
 		})
 	}
@@ -176,7 +179,7 @@ impl Renderer for WgpuRenderer {
 		gpu_selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
-		background: &Background,
+		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 			backends: wgpu::Backends::PRIMARY,
@@ -229,11 +232,26 @@ impl Renderer for WgpuRenderer {
 
 		let data = vec![0u8; (width * height * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
-		let address_mode = if background == &Background::Repeat {
-			wgpu::AddressMode::Repeat
-		} else {
-			wgpu::AddressMode::MirrorRepeat
+		let (address_mode, bg_color) = match scaling_mode {
+			ScalingMode::Fit { background } | ScalingMode::Center { background } => {
+				if background == &Background::Repeat {
+					(wgpu::AddressMode::Repeat, Color::default())
+				} else {
+					(
+						wgpu::AddressMode::MirrorRepeat,
+						if let Background::CssColor(color) = background {
+							color.clone()
+						} else {
+							Color::default()
+						},
+					)
+				}
+			}
+			ScalingMode::Stretch | ScalingMode::Cover => {
+				(wgpu::AddressMode::MirrorRepeat, Color::default())
+			}
 		};
+
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("sampler"),
 			address_mode_u: address_mode,
@@ -255,13 +273,6 @@ impl Renderer for WgpuRenderer {
 			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		});
-
-		let bg_color = match background {
-			Background::AutoColor => Color::default(),
-			Background::CssColor(color) => color.clone(),
-			Background::Repeat => Color::default(),
-			Background::MirrorRepeat => Color::default(),
-		};
 		let mut per_frame_data = PerFrameDataUniforms::new(
 			(width as f32, height as f32),
 			(initial_image.width() as f32, initial_image.height() as f32),
@@ -459,9 +470,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let scaling_fragment_shader =
-			WgpuRenderer::create_scaling_fragment_shader(&device, ScalingStrategy::default(), {
-				background != &Background::MirrorRepeat && background != &Background::Repeat
-			});
+			WgpuRenderer::create_scaling_fragment_shader(&device, scaling_mode);
 
 		let scaling_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

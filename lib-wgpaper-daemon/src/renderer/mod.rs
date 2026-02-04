@@ -1,7 +1,7 @@
 use crate::{image_wrapper::ImageWrapper, transition::TransitionProgress};
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
-use wgpaper_config::Background;
+use wgpaper_config::ScalingMode;
 
 pub mod lerp;
 pub mod texture;
@@ -17,7 +17,7 @@ pub trait Renderer {
 		selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
-		background: &Background,
+		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self>
 	where
 		Self: Sized;

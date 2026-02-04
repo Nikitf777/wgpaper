@@ -35,13 +35,13 @@ use wayland_client::{
 	globals::{GlobalList, registry_queue_init},
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
-use wgpaper_config::Background;
+use wgpaper_config::ScalingMode;
 
 pub struct GlobalOptions<'a> {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
 	pub animation_shader_path: Option<&'a Path>,
 	pub initial_image_path: Option<&'a Path>,
-	pub background: Option<Background>,
+	pub scaling_mode: Option<ScalingMode>,
 }
 
 pub struct PerOutputOptions {}
@@ -110,7 +110,7 @@ impl OutputStateEntry {
 		gpu_selector: crate::renderer::GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
-		background: &Background,
+		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<()> {
 		let renderer = WgpuRenderer::new(
 			conn,
@@ -120,7 +120,7 @@ impl OutputStateEntry {
 			gpu_selector,
 			animation_shader,
 			initial_image,
-			background,
+			scaling_mode,
 		)?;
 		self.renderer = Some(Box::new(renderer));
 		Ok(())
@@ -178,7 +178,7 @@ pub struct App {
 	current_image: ImageWrapper,
 	transition_begin: Instant,
 	transition: Transition,
-	background: Background,
+	scaling_mode: ScalingMode,
 }
 
 impl App {
@@ -221,7 +221,7 @@ impl App {
 			current_image: image,
 			transition_begin: Instant::now(),
 			transition: Transition::default(),
-			background: options.background.unwrap_or_default(),
+			scaling_mode: options.scaling_mode.unwrap_or_default(),
 		})
 	}
 
@@ -379,7 +379,7 @@ impl LayerShellHandler for App {
 					self.gpu_selector.clone(),
 					&self.animation_shader,
 					&self.current_image,
-					&self.background,
+					&self.scaling_mode,
 				) {
 					eprintln!("Renderer init failed: {}", e);
 				}
