@@ -104,7 +104,7 @@ pub struct WgpuRenderer {
 	config: wgpu::SurfaceConfiguration,
 	sampler: wgpu::Sampler,
 
-	offscreen_textures: Vec<Texture>,
+	offscreen_textures: [Texture; 3],
 	to_texture: Texture,
 	display_texture_idx: usize,
 	render_texture_idx: usize,
@@ -456,20 +456,18 @@ impl Renderer for WgpuRenderer {
 		});
 
 		// Animation Pipeline
-		let offscreen_textures = (0..3)
-			.map(|i| {
-				Texture::from_rgba8_with_format(
-					&device,
-					&queue,
-					width,
-					height,
-					&data,
-					&format!("offscreen_texture_{}", i),
-					surface_format,
-				)
-				.unwrap()
-			})
-			.collect::<Vec<_>>();
+		let offscreen_textures: [Texture; 3] = core::array::from_fn(|i| {
+			Texture::from_rgba8_with_format(
+				&device,
+				&queue,
+				width,
+				height,
+				&data,
+				&format!("offscreen_texture_{}", i),
+				surface_format,
+			)
+			.unwrap()
+		});
 		let display_texture_idx: usize = 0;
 		let render_texture_idx: usize = 1;
 
