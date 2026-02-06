@@ -12,8 +12,7 @@ pub trait Renderer {
 	fn new(
 		conn: &Connection,
 		layer_surface: &LayerSurface,
-		width: u32,
-		height: u32,
+		size: (u32, u32),
 		selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
@@ -24,7 +23,7 @@ pub trait Renderer {
 
 	fn render(&mut self) -> anyhow::Result<()>;
 
-	fn resize(&mut self, width: u32, height: u32) -> anyhow::Result<()>;
+	fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()>;
 
 	fn get_transition_progress(&self) -> TransitionProgress;
 

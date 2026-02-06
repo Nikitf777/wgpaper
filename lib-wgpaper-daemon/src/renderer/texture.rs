@@ -77,36 +77,27 @@ impl Texture {
 		let rgba = img.into_rgba8();
 		let dimensions = rgba.dimensions();
 
-		Self::from_rgba8_with_format(
-			device,
-			queue,
-			dimensions.0,
-			dimensions.1,
-			&rgba,
-			label,
-			format,
-		)
+		Self::from_rgba8_with_format(device, queue, dimensions, &rgba, label, format)
 	}
 
 	pub fn from_rgba8_with_format(
 		device: &wgpu::Device,
 		queue: &wgpu::Queue,
-		width: u32,
-		height: u32,
+		size: (u32, u32),
 		rgba: &[u8],
 		label: &str,
 		format: wgpu::TextureFormat, // ← Surface format
 	) -> anyhow::Result<Self> {
-		let size = wgpu::Extent3d {
-			width,
-			height,
+		let extend = wgpu::Extent3d {
+			width: size.0,
+			height: size.1,
 			depth_or_array_layers: 1,
 		};
 
 		// CRITICAL: Use surface format for compatibility
 		let texture = device.create_texture(&wgpu::TextureDescriptor {
 			label: Some(label),
-			size,
+			size: extend,
 			mip_level_count: 1,
 			sample_count: 1,
 			dimension: wgpu::TextureDimension::D2,
@@ -121,7 +112,7 @@ impl Texture {
 		// Handle format conversion during upload if needed
 		let (bytes_per_row, upload_data) = match format {
 			wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => {
-				(Some(4 * width), rgba.to_vec())
+				(Some(4 * size.0), rgba.to_vec())
 			}
 			wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => {
 				// Convert RGBA → BGRA on CPU (cheap for initialization)
@@ -129,11 +120,11 @@ impl Texture {
 				for chunk in rgba.chunks_exact(4) {
 					bgra.extend_from_slice(&[chunk[2], chunk[1], chunk[0], chunk[3]]);
 				}
-				(Some(4 * width), bgra)
+				(Some(4 * size.0), bgra)
 			}
 			_ => {
 				// Fallback: use RGBA upload and let GPU handle conversion via shader
-				(Some(4 * width), rgba.to_vec())
+				(Some(4 * size.0), rgba.to_vec())
 			}
 		};
 
@@ -148,9 +139,9 @@ impl Texture {
 			wgpu::TexelCopyBufferLayout {
 				offset: 0,
 				bytes_per_row,
-				rows_per_image: Some(height),
+				rows_per_image: Some(size.1),
 			},
-			size,
+			extend,
 		);
 
 		let view = texture.create_view(&wgpu::TextureViewDescriptor::default());

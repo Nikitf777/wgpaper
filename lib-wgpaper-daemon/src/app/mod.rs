@@ -1,6 +1,7 @@
 use crate::{
+	app::output::OutputStateEntry,
 	image_wrapper::ImageWrapper,
-	renderer::{GpuSelector, Renderer, wgpu_renderer::WgpuRenderer},
+	renderer::GpuSelector,
 	transition::{Transition, TransitionProgress},
 };
 use anyhow::Context;
@@ -25,7 +26,6 @@ use smithay_client_toolkit::{
 use std::{
 	collections::HashMap,
 	fs,
-	num::NonZeroU32,
 	path::{Path, PathBuf},
 	time::Instant,
 };
@@ -36,6 +36,8 @@ use wayland_client::{
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 use wgpaper_config::ScalingMode;
+
+pub mod output;
 
 pub struct GlobalOptions<'a> {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
@@ -81,87 +83,6 @@ pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Resu
 	Ok(())
 }
 
-struct OutputStateEntry {
-	output: WlOutput,
-	layer: LayerSurface,
-	renderer: Option<Box<dyn Renderer>>,
-	width: u32,
-	height: u32,
-}
-
-impl OutputStateEntry {
-	fn render(&mut self) {
-		if self.width == 0 || self.height == 0 {
-			return;
-		}
-
-		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.render() {
-				eprintln!("Rendering error: {}", e);
-			}
-		}
-
-		self.layer.wl_surface().commit();
-	}
-
-	fn init_renderer(
-		&mut self,
-		conn: &Connection,
-		gpu_selector: crate::renderer::GpuSelector,
-		animation_shader: &str,
-		initial_image: &ImageWrapper,
-		scaling_mode: &ScalingMode,
-	) -> anyhow::Result<()> {
-		let renderer = WgpuRenderer::new(
-			conn,
-			&self.layer,
-			self.width,
-			self.height,
-			gpu_selector,
-			animation_shader,
-			initial_image,
-			scaling_mode,
-		)?;
-		self.renderer = Some(Box::new(renderer));
-		Ok(())
-	}
-
-	fn resize(&mut self, width: u32, height: u32) {
-		if width == 0 || height == 0 {
-			return;
-		}
-
-		self.width = width;
-		self.height = height;
-
-		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.resize(width, height) {
-				eprintln!("Resize error: {}", e);
-			}
-		}
-	}
-
-	fn is_transitioning(&self) -> bool {
-		if let Some(renderer) = &self.renderer {
-			!renderer.get_transition_progress().is_finished()
-		} else {
-			false
-		}
-	}
-
-	fn set_transition_progress(&mut self, progress: TransitionProgress) {
-		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_transition_progress(progress);
-		}
-	}
-
-	fn set_next_image(&mut self, image: &ImageWrapper) {
-		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_next_image(image);
-		}
-	}
-}
-
 pub struct App {
 	registry_state: RegistryState,
 	seat_state: SeatState,
@@ -175,7 +96,7 @@ pub struct App {
 
 	gpu_selector: GpuSelector,
 	animation_shader: String,
-	current_image: ImageWrapper,
+	current_wallpaper: ImageWrapper,
 	transition_begin: Instant,
 	transition: Transition,
 	scaling_mode: ScalingMode,
@@ -218,7 +139,7 @@ impl App {
 			exit: false,
 			gpu_selector,
 			animation_shader,
-			current_image: image,
+			current_wallpaper: image,
 			transition_begin: Instant::now(),
 			transition: Transition::default(),
 			scaling_mode: options.scaling_mode.unwrap_or_default(),
@@ -227,21 +148,18 @@ impl App {
 
 	fn queue_render_all(&mut self, qh: &QueueHandle<Self>) {
 		for (_, output) in self.outputs.iter_mut() {
-			output
-				.layer
-				.wl_surface()
-				.frame(qh, output.layer.wl_surface().clone());
-			output.layer.wl_surface().commit();
+			output.frame(qh);
+			output.commit();
 		}
 	}
 
 	pub fn start_transition(&mut self, image_path: &Path) -> anyhow::Result<()> {
-		self.current_image = ImageWrapper::from_path(image_path)?;
+		self.current_wallpaper = ImageWrapper::from_path(image_path)?;
 		for (surface, output) in self.outputs.iter_mut() {
-			output.set_next_image(&self.current_image);
+			output.set_next_image(&self.current_wallpaper);
 			output.set_transition_progress(TransitionProgress::reset());
 			surface.frame(&self.qh, surface.clone());
-			output.layer.wl_surface().commit();
+			output.commit();
 		}
 		self.transition_begin = Instant::now();
 		Ok(())
@@ -267,6 +185,7 @@ impl CompositorHandler for App {
 				output.set_transition_progress(progress);
 			}
 			output.render();
+			output.commit();
 		}
 	}
 
@@ -328,16 +247,8 @@ impl OutputHandler for App {
 		layer.set_size(0, 0);
 		layer.commit();
 
-		self.outputs.insert(
-			surface,
-			OutputStateEntry {
-				output,
-				layer,
-				renderer: None,
-				width: 0,
-				height: 0,
-			},
-		);
+		self.outputs
+			.insert(surface, OutputStateEntry::new(output, layer));
 	}
 
 	fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
@@ -345,7 +256,7 @@ impl OutputHandler for App {
 	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
 		if let Some((_, _)) = self
 			.outputs
-			.extract_if(|_, output| output.output == _output)
+			.extract_if(|_, output| output.output() == &_output)
 			.next()
 		{
 			// TODO: log that the output was removed.
@@ -355,7 +266,7 @@ impl OutputHandler for App {
 
 impl LayerShellHandler for App {
 	fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
-		self.outputs.retain(|_, output| &output.layer != layer);
+		self.outputs.retain(|_, output| &output.layer() != &layer);
 	}
 
 	fn configure(
@@ -366,19 +277,15 @@ impl LayerShellHandler for App {
 		configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
 		_serial: u32,
 	) {
-		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			let (new_width, new_height) = configure.new_size;
-			output.width = NonZeroU32::new(new_width).map_or(256, NonZeroU32::get);
-			output.height = NonZeroU32::new(new_height).map_or(256, NonZeroU32::get);
+		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer() == &layer) {
+			output.resize(configure.new_size);
 
-			output.resize(output.width, output.height);
-
-			if output.renderer.is_none() {
+			if !output.is_initialized() {
 				if let Err(e) = output.init_renderer(
 					conn,
 					self.gpu_selector.clone(),
 					&self.animation_shader,
-					&self.current_image,
+					&self.current_wallpaper,
 					&self.scaling_mode,
 				) {
 					eprintln!("Renderer init failed: {}", e);

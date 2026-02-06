@@ -252,8 +252,7 @@ impl Renderer for WgpuRenderer {
 	fn new(
 		conn: &Connection,
 		layer_surface: &LayerSurface,
-		width: u32,
-		height: u32,
+		size: (u32, u32),
 		gpu_selector: GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
@@ -301,14 +300,13 @@ impl Renderer for WgpuRenderer {
 		let initial_texture = Texture::from_rgba8_with_format(
 			&device,
 			&queue,
-			initial_image.width(),
-			initial_image.height(),
+			(initial_image.width(), initial_image.height()),
 			initial_image.as_slice(),
 			"to_texture",
 			surface_format,
 		)?;
 
-		let data = vec![0u8; (width * height * 4) as usize]; // Data for initial placeholder textures (black rectangle)
+		let data = vec![0u8; (size.0 * size.1 * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
 		let (address_mode, bg_color) = Self::get_address_mode_and_bg_color(scaling_mode);
 
@@ -334,7 +332,7 @@ impl Renderer for WgpuRenderer {
 			mapped_at_creation: false,
 		});
 		let mut per_frame_data = PerFrameDataUniforms::new(
-			(width as f32, height as f32),
+			(size.0 as f32, size.1 as f32),
 			(initial_image.width() as f32, initial_image.height() as f32),
 			TransitionProgress::reset(),
 			bg_color,
@@ -370,8 +368,7 @@ impl Renderer for WgpuRenderer {
 		let scaled_texture = Texture::from_rgba8_with_format(
 			&device,
 			&queue,
-			width,
-			height,
+			size,
 			&data,
 			"scaling_texture",
 			surface_format,
@@ -460,8 +457,7 @@ impl Renderer for WgpuRenderer {
 			Texture::from_rgba8_with_format(
 				&device,
 				&queue,
-				width,
-				height,
+				size,
 				&data,
 				&format!("offscreen_texture_{}", i),
 				surface_format,
@@ -569,8 +565,8 @@ impl Renderer for WgpuRenderer {
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
 			format: surface_format,
-			width,
-			height,
+			width: size.0,
+			height: size.1,
 			present_mode: surface_caps.present_modes[0],
 			alpha_mode: surface_caps.alpha_modes[0],
 			view_formats: vec![],
@@ -649,12 +645,12 @@ impl Renderer for WgpuRenderer {
 		Ok(())
 	}
 
-	fn resize(&mut self, width: u32, height: u32) -> anyhow::Result<()> {
-		self.config.width = width;
-		self.config.height = height;
+	fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()> {
+		self.config.width = size.0;
+		self.config.height = size.1;
 		self.surface.configure(&self.device, &self.config);
 		self.per_frame_data
-			.update_screen_size((width as f32, height as f32));
+			.update_screen_size((size.0 as f32, size.1 as f32));
 		Ok(())
 	}
 
@@ -685,8 +681,7 @@ impl Renderer for WgpuRenderer {
 		self.to_texture = Texture::from_rgba8_with_format(
 			&self.device,
 			&self.queue,
-			image.width(),
-			image.height(),
+			(image.width(), image.height()),
 			image.as_slice(),
 			"to_texture",
 			self.config.format,
