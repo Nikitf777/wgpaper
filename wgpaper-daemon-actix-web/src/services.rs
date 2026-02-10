@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use actix_web::{HttpResponse, web};
 use calloop::channel::Sender;
-use lib_wgpaper_daemon::app::Commands;
+use lib_wgpaper_daemon::Commands;
 use wgpaper_config::Config;
 
 use crate::random_file::select_random_file;

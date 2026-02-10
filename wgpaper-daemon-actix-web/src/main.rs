@@ -1,7 +1,7 @@
 use crate::{random_file::select_random_file, services::TransitionService};
 use actix_web::{App, HttpServer, web};
 use calloop::channel::channel;
-use lib_wgpaper_daemon::app::{self, Commands, GlobalOptions};
+use lib_wgpaper_daemon::{Commands, GlobalOptions, start};
 use std::{
 	sync::{Arc, Mutex},
 	thread,
@@ -34,7 +34,7 @@ async fn main() -> std::io::Result<()> {
 			scaling_mode: config_for_thread.scaling_mode().cloned(),
 		};
 
-		app::start(channel, options).unwrap();
+		start(channel, options).unwrap();
 	});
 
 	let transition_service = Arc::new(Mutex::new(TransitionService::default()));

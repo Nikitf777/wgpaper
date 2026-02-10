@@ -5,7 +5,7 @@ use actix_web::{
 	web::{self},
 };
 use calloop::channel::Sender;
-use lib_wgpaper_daemon::app::Commands;
+use lib_wgpaper_daemon::Commands;
 use wgpaper_config::Config;
 
 use crate::services::TransitionService;
