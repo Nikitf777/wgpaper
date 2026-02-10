@@ -2,7 +2,7 @@ use crate::{
 	app::output::OutputStateEntry,
 	image_wrapper::ImageWrapper,
 	renderer::GpuSelector,
-	transition::{Transition, TransitionProgress},
+	transition::{ActiveTransition, TransitionProgress},
 };
 use anyhow::Context;
 use calloop::{EventLoop, channel::Channel};
@@ -27,7 +27,6 @@ use std::{
 	collections::HashMap,
 	fs,
 	path::{Path, PathBuf},
-	time::Instant,
 };
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
@@ -97,8 +96,7 @@ pub struct App {
 	gpu_selector: GpuSelector,
 	animation_shader: String,
 	current_wallpaper: ImageWrapper,
-	transition_begin: Instant,
-	transition: Transition,
+	transition: ActiveTransition,
 	scaling_mode: ScalingMode,
 }
 
@@ -140,8 +138,7 @@ impl App {
 			gpu_selector,
 			animation_shader,
 			current_wallpaper: image,
-			transition_begin: Instant::now(),
-			transition: Transition::default(),
+			transition: ActiveTransition::default(),
 			scaling_mode: options.scaling_mode.unwrap_or_default(),
 		})
 	}
@@ -161,7 +158,7 @@ impl App {
 			surface.frame(&self.qh, surface.clone());
 			output.commit();
 		}
-		self.transition_begin = Instant::now();
+		self.transition.start();
 		Ok(())
 	}
 }
@@ -175,9 +172,7 @@ impl CompositorHandler for App {
 		_time: u32,
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
-			let progress = self
-				.transition
-				.advance_to(Instant::now().duration_since(self.transition_begin));
+			let progress = self.transition.progress();
 			if !progress.is_finished() {
 				surface.frame(qh, surface.clone());
 			}
