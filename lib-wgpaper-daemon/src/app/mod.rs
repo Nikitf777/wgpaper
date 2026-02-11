@@ -1,9 +1,8 @@
 use crate::{
 	GlobalOptions,
-	app::output::OutputStateEntry,
+	app::{core::WallpaperState, output::OutputManager},
 	image_wrapper::ImageWrapper,
-	renderer::GpuSelector,
-	transition::{ActiveTransition, TransitionProgress},
+	transition::ActiveTransition,
 };
 use anyhow::Context;
 use smithay_client_toolkit::{
@@ -14,23 +13,18 @@ use smithay_client_toolkit::{
 	registry::{ProvidesRegistryState, RegistryState},
 	registry_handlers,
 	seat::{Capability, SeatHandler, SeatState},
-	shell::{
-		WaylandSurface,
-		wlr_layer::{
-			Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
-		},
-	},
+	shell::wlr_layer::{LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
 	shm::{Shm, ShmHandler},
 };
-use std::{collections::HashMap, fs, path::Path};
+use std::{fs, path::Path};
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
 	globals::GlobalList,
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
-use wgpaper_config::ScalingMode;
 
+pub mod core;
 pub mod output;
 
 pub struct App {
@@ -40,15 +34,11 @@ pub struct App {
 	shm: Shm,
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
-	outputs: HashMap<WlSurface, OutputStateEntry>,
+	output_manager: OutputManager,
 	qh: QueueHandle<App>,
 	pub exit: bool,
 
-	gpu_selector: GpuSelector,
-	animation_shader: String,
-	current_wallpaper: ImageWrapper,
-	transition: ActiveTransition,
-	scaling_mode: ScalingMode,
+	wallpaper_state: WallpaperState,
 }
 
 impl App {
@@ -64,8 +54,8 @@ impl App {
 		let layer_shell = LayerShell::bind(&globals, &qh).context("layer shell not available")?;
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
-		let gpu_selector = GpuSelector::from(options.gpu_selector.unwrap_or_default());
-		let animation_shader = fs::read_to_string(
+		let gpu_selector = options.gpu_selector.unwrap_or_default();
+		let shader_source = fs::read_to_string(
 			options
 				.animation_shader_path
 				.expect("wgpaper can't run without a transition shader."),
@@ -83,33 +73,25 @@ impl App {
 			shm,
 			compositor_state,
 			layer_shell,
-			outputs: HashMap::new(),
+			output_manager: OutputManager::default(),
 			qh,
 			exit: false,
-			gpu_selector,
-			animation_shader,
-			current_wallpaper: image,
-			transition: ActiveTransition::default(),
-			scaling_mode: options.scaling_mode.unwrap_or_default(),
+
+			wallpaper_state: WallpaperState {
+				gpu_selector,
+				shader_source,
+				current_image: image,
+				transition: ActiveTransition::default(),
+				scaling_mode: options.scaling_mode.unwrap_or_default(),
+			},
 		})
 	}
 
-	fn queue_render_all(&mut self, qh: &QueueHandle<Self>) {
-		for (_, output) in self.outputs.iter_mut() {
-			output.frame(qh);
-			output.commit();
-		}
-	}
-
 	pub fn start_transition(&mut self, image_path: &Path) -> anyhow::Result<()> {
-		self.current_wallpaper = ImageWrapper::from_path(image_path)?;
-		for (surface, output) in self.outputs.iter_mut() {
-			output.set_next_image(&self.current_wallpaper);
-			output.set_transition_progress(TransitionProgress::reset());
-			surface.frame(&self.qh, surface.clone());
-			output.commit();
-		}
-		self.transition.start();
+		self.wallpaper_state.current_image = ImageWrapper::from_path(image_path)?;
+		self.output_manager
+			.start_transition(&self.qh, &self.wallpaper_state.current_image)?;
+		self.wallpaper_state.transition.start();
 		Ok(())
 	}
 }
@@ -122,17 +104,8 @@ impl CompositorHandler for App {
 		surface: &WlSurface,
 		_time: u32,
 	) {
-		if let Some(output) = self.outputs.get_mut(surface) {
-			let progress = self.transition.progress();
-			if !progress.is_finished() {
-				surface.frame(qh, surface.clone());
-			}
-			if output.is_transitioning() {
-				output.set_transition_progress(progress);
-			}
-			output.render();
-			output.commit();
-		}
+		let progress = self.wallpaper_state.transition.progress();
+		self.output_manager.frame(qh, surface, progress);
 	}
 
 	fn scale_factor_changed(
@@ -178,41 +151,24 @@ impl OutputHandler for App {
 	}
 
 	fn new_output(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {
-		let surface = self.compositor_state.create_surface(qh);
-		let layer = self.layer_shell.create_layer_surface(
-			qh,
-			surface.clone(),
-			Layer::Background,
-			Some("multi_output_layer"),
-			Some(&output),
+		self.output_manager.handle_new_output(
+			&qh,
+			&self.compositor_state,
+			&self.layer_shell,
+			&output,
 		);
-
-		layer.set_anchor(Anchor::all());
-		layer.set_exclusive_zone(-1);
-		layer.set_keyboard_interactivity(KeyboardInteractivity::None);
-		layer.set_size(0, 0);
-		layer.commit();
-
-		self.outputs
-			.insert(surface, OutputStateEntry::new(output, layer));
 	}
 
 	fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {}
 
-	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: WlOutput) {
-		if let Some((_, _)) = self
-			.outputs
-			.extract_if(|_, output| output.output() == &_output)
-			.next()
-		{
-			// TODO: log that the output was removed.
-		}
+	fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, output: WlOutput) {
+		self.output_manager.handle_output_destroyed(output);
 	}
 }
 
 impl LayerShellHandler for App {
 	fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
-		self.outputs.retain(|_, output| &output.layer() != &layer);
+		self.output_manager.handle_layer_surface_closed(layer);
 	}
 
 	fn configure(
@@ -220,26 +176,11 @@ impl LayerShellHandler for App {
 		conn: &Connection,
 		qh: &QueueHandle<Self>,
 		layer: &LayerSurface,
-		configure: smithay_client_toolkit::shell::wlr_layer::LayerSurfaceConfigure,
+		configure: LayerSurfaceConfigure,
 		_serial: u32,
 	) {
-		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer() == &layer) {
-			output.resize(configure.new_size);
-
-			if !output.is_initialized() {
-				if let Err(e) = output.init_renderer(
-					conn,
-					self.gpu_selector.clone(),
-					&self.animation_shader,
-					&self.current_wallpaper,
-					&self.scaling_mode,
-				) {
-					eprintln!("Renderer init failed: {}", e);
-				}
-			}
-
-			self.queue_render_all(qh);
-		}
+		self.output_manager
+			.handle_configure(conn, qh, layer, &configure, &self.wallpaper_state);
 	}
 }
 

@@ -13,7 +13,7 @@ pub trait Renderer {
 		conn: &Connection,
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
-		selector: GpuSelector,
+		gpu_selector: wgpaper_config::GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,

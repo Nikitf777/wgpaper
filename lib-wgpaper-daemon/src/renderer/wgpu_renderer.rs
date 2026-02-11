@@ -253,7 +253,7 @@ impl Renderer for WgpuRenderer {
 		conn: &Connection,
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
-		gpu_selector: GpuSelector,
+		gpu_selector: wgpaper_config::GpuSelector,
 		animation_shader: &str,
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,
@@ -279,6 +279,7 @@ impl Renderer for WgpuRenderer {
 				.context("Failed to create surface")?
 		};
 
+		let gpu_selector = GpuSelector::from(gpu_selector);
 		let adapter =
 			pollster::block_on(select_gpu(&instance, WgpuSelector::from(gpu_selector))).unwrap_or(
 				pollster::block_on(select_gpu(&instance, WgpuSelector::default()))?,
