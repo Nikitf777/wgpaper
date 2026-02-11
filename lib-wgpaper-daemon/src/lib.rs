@@ -8,9 +8,10 @@ use wgpaper_config::ScalingMode;
 use crate::app::App;
 
 pub mod app;
-mod image_wrapper;
+pub mod image_wrapper;
 pub mod renderer;
 pub mod transition;
+pub mod utilities;
 
 pub struct GlobalOptions<'a> {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,

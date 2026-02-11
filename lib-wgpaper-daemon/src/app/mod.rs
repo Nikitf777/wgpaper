@@ -24,6 +24,7 @@ use wayland_client::{
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 
+pub mod communicator;
 pub mod core;
 pub mod output;
 

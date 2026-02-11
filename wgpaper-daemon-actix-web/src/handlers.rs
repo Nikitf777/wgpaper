@@ -4,20 +4,13 @@ use actix_web::{
 	HttpResponse, Responder,
 	web::{self},
 };
-use calloop::channel::Sender;
-use lib_wgpaper_daemon::Commands;
-use wgpaper_config::Config;
+use lib_wgpaper_daemon::app::communicator::AppCommunicator;
 
-use crate::services::TransitionService;
-
-pub async fn start_transition(
-	sender: web::Data<Sender<Commands>>,
-	config: web::Data<Config>,
-	transition_service: web::Data<Mutex<TransitionService>>,
-) -> impl Responder {
-	let mut service = transition_service.lock().unwrap();
-	service
-		.start_transition(sender, config)
+pub async fn start_transition(communicator: web::Data<Mutex<AppCommunicator>>) -> impl Responder {
+	communicator
+		.lock()
+		.unwrap()
+		.start_transition()
 		.map(|_| HttpResponse::Ok().body("OK"))
 		.unwrap_or_else(|_| HttpResponse::ServiceUnavailable().body("SCTK offline"))
 }
