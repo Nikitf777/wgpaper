@@ -17,7 +17,7 @@ impl TransitionService {
 		&mut self,
 		sender: web::Data<Sender<Commands>>,
 		config: web::Data<Config>,
-	) -> anyhow::Result<HttpResponse> {
+	) -> anyhow::Result<()> {
 		let excluded_files = [self.prev_image_path.as_deref().unwrap_or(Path::new(""))];
 
 		let path = select_random_file(
@@ -28,10 +28,6 @@ impl TransitionService {
 		.unwrap();
 		self.prev_image_path = Some(path.clone());
 		let command = Commands::StartTransition { image_path: path };
-		anyhow::Ok(
-			sender
-				.send(command)
-				.map(|_| HttpResponse::Ok().body("OK"))?,
-		)
+		anyhow::Ok(sender.send(command)?)
 	}
 }

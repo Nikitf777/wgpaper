@@ -18,5 +18,6 @@ pub async fn start_transition(
 	let mut service = transition_service.lock().unwrap();
 	service
 		.start_transition(sender, config)
+		.map(|_| HttpResponse::Ok().body("OK"))
 		.unwrap_or_else(|_| HttpResponse::ServiceUnavailable().body("SCTK offline"))
 }
