@@ -9,7 +9,7 @@ use crate::{app::communicator::AppCommunicator, utilities::random_file::select_r
 
 pub struct AppManager {
 	communicator: AppCommunicator,
-	wallpaper_directories: Vec<PathBuf>,
+	config: Arc<Config>,
 	prev_image_path: Option<PathBuf>,
 }
 
@@ -18,7 +18,7 @@ impl AppManager {
 		let config_for_communicator = config.clone();
 		Self {
 			communicator: AppCommunicator::new(config_for_communicator),
-			wallpaper_directories: config.wallpaper_directories().unwrap_or_default().to_vec(),
+			config,
 			prev_image_path: None,
 		}
 	}
@@ -26,8 +26,8 @@ impl AppManager {
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
 		let excluded_files = [self.prev_image_path.as_deref().unwrap_or(Path::new(""))];
 		let path = select_random_file(
-			&self.wallpaper_directories,
-			&[".jpg", ".png"],
+			&self.config.wallpaper_directories(),
+			&self.config.image_extensions(),
 			&excluded_files,
 		)
 		.unwrap();

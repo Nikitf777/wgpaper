@@ -59,7 +59,7 @@ impl App {
 		let gpu_selector = options.gpu_selector.unwrap_or_default();
 		let shader_source = fs::read_to_string(
 			options
-				.animation_shader_path
+				.shader_path
 				.expect("wgpaper can't run without a transition shader."),
 		)?;
 		let image = ImageWrapper::from_path(

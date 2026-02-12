@@ -15,7 +15,7 @@ pub mod utilities;
 
 pub struct GlobalOptions<'a> {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
-	pub animation_shader_path: Option<&'a Path>,
+	pub shader_path: Option<&'a Path>,
 	pub initial_image_path: Option<&'a Path>,
 	pub scaling_mode: Option<ScalingMode>,
 }

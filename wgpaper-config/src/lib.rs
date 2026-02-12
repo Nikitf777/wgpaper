@@ -1,6 +1,7 @@
 use const_format::formatcp;
 use csscolorparser::Color;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use shellexpand::tilde;
 use std::{
 	env, fs,
 	path::{Path, PathBuf},
@@ -70,12 +71,57 @@ impl Default for Background {
 	}
 }
 
+fn get_path_from_string_expanded(path: String) -> PathBuf {
+	PathBuf::from(tilde(&path).into_owned())
+}
+
+fn deserialize_path_expanded<'de, D>(deserializer: D) -> Result<Option<PathBuf>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let s: Option<String> = Option::deserialize(deserializer)?;
+	s.map(|path_str| Ok(PathBuf::from(get_path_from_string_expanded(path_str))))
+		.transpose()
+}
+
+fn deserialize_paths_expanded<'de, D>(deserializer: D) -> Result<Vec<PathBuf>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let paths: Vec<String> = Vec::deserialize(deserializer)?;
+	paths
+		.into_iter()
+		.map(|path_str| Ok(PathBuf::from(get_path_from_string_expanded(path_str))))
+		.collect()
+}
+
+fn wallpaper_directories_default() -> Vec<PathBuf> {
+	vec![get_path_from_string_expanded(
+		"~/Pictures/Wallpapers".to_string(),
+	)]
+}
+
+fn image_extensions_default() -> Vec<String> {
+	vec![".jpg".to_string(), ".png".to_string()]
+}
+
 #[derive(Deserialize)]
 pub struct Config {
-	animation_shader: Option<PathBuf>,
+	#[serde(default, deserialize_with = "deserialize_path_expanded")]
+	shader: Option<PathBuf>,
+
+	#[serde(default, deserialize_with = "deserialize_path_expanded")]
 	initial_wallpaper: Option<PathBuf>,
-	wallpaper_directories: Option<Vec<PathBuf>>,
-	image_extensions: Option<Vec<String>>,
+
+	#[serde(
+		default = "wallpaper_directories_default",
+		deserialize_with = "deserialize_paths_expanded"
+	)]
+	wallpaper_directories: Vec<PathBuf>,
+
+	#[serde(default = "image_extensions_default")]
+	image_extensions: Vec<String>,
+
 	scaling_mode: Option<ScalingMode>,
 	listen_socket: Option<ListenSocket>,
 	gpu: Option<GpuSelector>,
@@ -110,8 +156,8 @@ impl Config {
 	}
 
 	/// Returns the animation shader path if configured
-	pub fn animation_shader(&self) -> Option<&Path> {
-		self.animation_shader.as_deref()
+	pub fn shader(&self) -> Option<&Path> {
+		self.shader.as_deref()
 	}
 
 	/// Returns the initial wallpaper path if configured
@@ -120,13 +166,13 @@ impl Config {
 	}
 
 	/// Returns wallpaper directories if configured
-	pub fn wallpaper_directories(&self) -> Option<&[PathBuf]> {
-		self.wallpaper_directories.as_deref()
+	pub fn wallpaper_directories(&self) -> &[PathBuf] {
+		self.wallpaper_directories.as_ref()
 	}
 
 	/// Returns allowed image extensions if configured
-	pub fn image_extensions(&self) -> Option<&[String]> {
-		self.image_extensions.as_deref()
+	pub fn image_extensions(&self) -> &[String] {
+		self.image_extensions.as_ref()
 	}
 
 	/// Returns the scaling strategy if configured

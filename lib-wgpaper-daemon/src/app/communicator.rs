@@ -17,16 +17,16 @@ impl AppCommunicator {
 		let (sender, channel) = channel::<Commands>();
 		let config_for_thread = config.clone();
 		let handle = thread::spawn(move || {
-			let directories = config_for_thread
-				.wallpaper_directories()
-				.expect("wallpaper_directories must be configured");
-
-			let path = select_random_file(directories, &[".jpg", ".png"], &[] as &[&str])
-				.expect("failed to select random wallpaper");
+			let path = select_random_file(
+				&config.wallpaper_directories(),
+				&config.image_extensions(),
+				&[] as &[&str],
+			)
+			.expect("failed to select random wallpaper");
 
 			let options = GlobalOptions {
 				gpu_selector: config_for_thread.gpu().cloned(),
-				animation_shader_path: config_for_thread.animation_shader(),
+				shader_path: config_for_thread.shader(),
 				initial_image_path: Some(&path),
 				scaling_mode: config_for_thread.scaling_mode().cloned(),
 			};
