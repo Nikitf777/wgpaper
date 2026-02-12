@@ -1,11 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use calloop::{EventLoop, channel::Channel};
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use wayland_client::{Connection, globals::registry_queue_init};
 use wgpaper_config::ScalingMode;
 
-use crate::app::App;
+use crate::{app::App, image_wrapper::ImageWrapper};
 
 pub mod app;
 pub mod image_wrapper;
@@ -22,9 +22,8 @@ pub struct GlobalOptions<'a> {
 
 pub struct PerOutputOptions {}
 
-#[derive(serde::Deserialize)]
 pub enum Commands {
-	StartTransitionAll { image_path: PathBuf },
+	StartTransitionAll { image: ImageWrapper },
 }
 
 pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Result<()> {
@@ -38,8 +37,8 @@ pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Resu
 	loop_handle
 		.insert_source(channel, |e, _, app| match e {
 			calloop::channel::Event::Msg(command) => match command {
-				Commands::StartTransitionAll { image_path } => {
-					app.start_transition_all(&image_path);
+				Commands::StartTransitionAll { image } => {
+					app.start_transition_all(image);
 				}
 			},
 			calloop::channel::Event::Closed => todo!(),

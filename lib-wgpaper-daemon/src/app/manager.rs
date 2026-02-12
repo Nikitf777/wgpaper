@@ -5,7 +5,10 @@ use std::{
 
 use wgpaper_config::Config;
 
-use crate::{app::communicator::AppCommunicator, utilities::random_file::select_random_file};
+use crate::{
+	app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
+	utilities::random_file::select_random_file,
+};
 
 pub struct AppManager {
 	communicator: AppCommunicator,
@@ -33,6 +36,7 @@ impl AppManager {
 		.unwrap();
 
 		self.prev_image_path = Some(path.clone());
-		self.communicator.start_transition_all(path)
+		self.communicator
+			.start_transition_all(ImageWrapper::from_path(&path)?)
 	}
 }

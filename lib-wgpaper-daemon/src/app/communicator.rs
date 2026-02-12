@@ -1,7 +1,9 @@
-use crate::{Commands, GlobalOptions, start, utilities::random_file::select_random_file};
+use crate::{
+	Commands, GlobalOptions, image_wrapper::ImageWrapper, start,
+	utilities::random_file::select_random_file,
+};
 use calloop::channel::{Sender, channel};
 use std::{
-	path::PathBuf,
 	sync::Arc,
 	thread::{self, JoinHandle},
 };
@@ -40,8 +42,8 @@ impl AppCommunicator {
 		}
 	}
 
-	pub fn start_transition_all(&mut self, image_path: PathBuf) -> anyhow::Result<()> {
-		let command = Commands::StartTransitionAll { image_path };
+	pub fn start_transition_all(&mut self, image: ImageWrapper) -> anyhow::Result<()> {
+		let command = Commands::StartTransitionAll { image };
 		anyhow::Ok(self.sender.send(command)?)
 	}
 }

@@ -16,7 +16,7 @@ use smithay_client_toolkit::{
 	shell::wlr_layer::{LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
 	shm::{Shm, ShmHandler},
 };
-use std::{fs, path::Path};
+use std::fs;
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
@@ -89,8 +89,8 @@ impl App {
 		})
 	}
 
-	pub fn start_transition_all(&mut self, image_path: &Path) -> anyhow::Result<()> {
-		self.wallpaper_state.current_image = ImageWrapper::from_path(image_path)?;
+	pub fn start_transition_all(&mut self, image: ImageWrapper) -> anyhow::Result<()> {
+		self.wallpaper_state.current_image = image;
 		self.output_manager
 			.start_transition(&self.qh, &self.wallpaper_state.current_image)?;
 		self.wallpaper_state.transition.start();
