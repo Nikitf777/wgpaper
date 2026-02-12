@@ -1,5 +1,5 @@
 use actix_web::{App, HttpServer, web};
-use lib_wgpaper_daemon::app::communicator::AppCommunicator;
+use lib_wgpaper_daemon::app::manager::AppManager;
 use std::sync::{Arc, Mutex};
 
 mod handlers;
@@ -7,11 +7,11 @@ mod handlers;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	let config = Arc::new(wgpaper_config::Config::new().unwrap());
-	let communicator = Arc::new(Mutex::new(AppCommunicator::new(config)));
+	let app_manager = Arc::new(Mutex::new(AppManager::new(config)));
 
 	HttpServer::new(move || {
 		App::new()
-			.app_data(web::Data::from(communicator.clone()))
+			.app_data(web::Data::from(app_manager.clone()))
 			.route(
 				"/transition/start",
 				web::post().to(handlers::start_transition),

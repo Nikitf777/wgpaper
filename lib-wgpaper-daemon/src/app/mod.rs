@@ -26,6 +26,7 @@ use wayland_client::{
 
 pub mod communicator;
 pub mod core;
+pub mod manager;
 pub mod output;
 
 pub struct App {
@@ -88,7 +89,7 @@ impl App {
 		})
 	}
 
-	pub fn start_transition(&mut self, image_path: &Path) -> anyhow::Result<()> {
+	pub fn start_transition_all(&mut self, image_path: &Path) -> anyhow::Result<()> {
 		self.wallpaper_state.current_image = ImageWrapper::from_path(image_path)?;
 		self.output_manager
 			.start_transition(&self.qh, &self.wallpaper_state.current_image)?;

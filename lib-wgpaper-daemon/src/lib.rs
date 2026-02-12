@@ -24,7 +24,7 @@ pub struct PerOutputOptions {}
 
 #[derive(serde::Deserialize)]
 pub enum Commands {
-	StartTransition { image_path: PathBuf },
+	StartTransitionAll { image_path: PathBuf },
 }
 
 pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Result<()> {
@@ -38,8 +38,8 @@ pub fn start(channel: Channel<Commands>, options: GlobalOptions) -> anyhow::Resu
 	loop_handle
 		.insert_source(channel, |e, _, app| match e {
 			calloop::channel::Event::Msg(command) => match command {
-				Commands::StartTransition { image_path } => {
-					app.start_transition(&image_path);
+				Commands::StartTransitionAll { image_path } => {
+					app.start_transition_all(&image_path);
 				}
 			},
 			calloop::channel::Event::Closed => todo!(),

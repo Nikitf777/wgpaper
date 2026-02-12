@@ -1,7 +1,7 @@
 use crate::{Commands, GlobalOptions, start, utilities::random_file::select_random_file};
 use calloop::channel::{Sender, channel};
 use std::{
-	path::{Path, PathBuf},
+	path::PathBuf,
 	sync::Arc,
 	thread::{self, JoinHandle},
 };
@@ -10,8 +10,6 @@ use wgpaper_config::Config;
 pub struct AppCommunicator {
 	sender: Sender<Commands>,
 	app_thread: JoinHandle<()>,
-	config: Arc<Config>,
-	prev_image_path: Option<PathBuf>,
 }
 
 impl AppCommunicator {
@@ -39,22 +37,11 @@ impl AppCommunicator {
 		Self {
 			sender,
 			app_thread: handle,
-			config: config.clone(),
-			prev_image_path: None,
 		}
 	}
 
-	pub fn start_transition(&mut self) -> anyhow::Result<()> {
-		let excluded_files = [self.prev_image_path.as_deref().unwrap_or(Path::new(""))];
-		let path = select_random_file(
-			self.config.wallpaper_directories().unwrap_or_default(),
-			&[".jpg", ".png"],
-			&excluded_files,
-		)
-		.unwrap();
-
-		self.prev_image_path = Some(path.clone());
-		let command = Commands::StartTransition { image_path: path };
+	pub fn start_transition_all(&mut self, image_path: PathBuf) -> anyhow::Result<()> {
+		let command = Commands::StartTransitionAll { image_path };
 		anyhow::Ok(self.sender.send(command)?)
 	}
 }
