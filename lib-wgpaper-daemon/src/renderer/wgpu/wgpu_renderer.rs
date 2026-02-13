@@ -73,30 +73,6 @@ impl PerFrameDataUniforms {
 	}
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct TransitionProgressUniforms {
-	progress_bezier: f32,
-	progress_linear: f32,
-	_padding: [u8; 248],
-}
-
-impl TransitionProgressUniforms {
-	fn new(progress: f32, progress_clamped: f32) -> Self {
-		Self {
-			progress_bezier: progress,
-			progress_linear: progress_clamped,
-			_padding: [0u8; 248],
-		}
-	}
-}
-
-impl From<&TransitionProgress> for TransitionProgressUniforms {
-	fn from(progress: &TransitionProgress) -> Self {
-		Self::new(progress.progress_bezier, progress.progress_linear)
-	}
-}
-
 pub struct WgpuRenderer {
 	device: wgpu::Device,
 	queue: wgpu::Queue,
