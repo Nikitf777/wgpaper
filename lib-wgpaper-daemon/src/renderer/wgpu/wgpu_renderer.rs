@@ -203,10 +203,7 @@ impl WgpuRenderer {
 				},
 				depth_slice: None,
 			})],
-			depth_stencil_attachment: None,
-			timestamp_writes: None,
-			occlusion_query_set: None,
-			multiview_mask: None,
+			..Default::default()
 		});
 
 		scaling_render_pass.set_pipeline(&self.scaling_pipeline);
@@ -232,10 +229,7 @@ impl WgpuRenderer {
 				},
 				depth_slice: None,
 			})],
-			depth_stencil_attachment: None,
-			timestamp_writes: None,
-			occlusion_query_set: None,
-			multiview_mask: None,
+			..Default::default()
 		});
 
 		animation_render_pass.set_pipeline(&self.animation_pipeline);
