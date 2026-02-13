@@ -10,6 +10,7 @@ use crate::{
 pub struct AppManager {
 	communicator: AppCommunicator,
 	image_selector: RandomFileSelector,
+	next_image: Option<ImageWrapper>,
 }
 
 impl AppManager {
@@ -19,16 +20,25 @@ impl AppManager {
 			config.image_extensions().to_vec(),
 		);
 		selector.update_matching_files()?;
+		let next_image = ImageWrapper::from_path(&selector.pick_random()?)?;
 
 		Ok(Self {
 			communicator: AppCommunicator::new(config.clone()),
 			image_selector: selector,
+			next_image: Some(next_image),
 		})
 	}
 
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
-		let path = self.image_selector.pick_random()?;
-		self.communicator
-			.start_transition_all(ImageWrapper::from_path(&path)?)
+		self.communicator.start_transition_all(
+			self.next_image
+				.take()
+				.expect("next_image should always be populated"),
+		)?;
+
+		self.next_image = Some(ImageWrapper::from_path(
+			&self.image_selector.pick_random()?,
+		)?);
+		Ok(())
 	}
 }
