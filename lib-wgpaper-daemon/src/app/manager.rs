@@ -1,41 +1,33 @@
-use std::{
-	path::{Path, PathBuf},
-	sync::Arc,
-};
+use std::sync::Arc;
 
 use wgpaper_config::Config;
 
 use crate::{
 	app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
-	utilities::random_file::select_random_file,
+	utilities::random_file::RandomFileSelector,
 };
 
 pub struct AppManager {
 	communicator: AppCommunicator,
-	config: Arc<Config>,
-	prev_image_path: Option<PathBuf>,
+	image_selector: RandomFileSelector,
 }
 
 impl AppManager {
-	pub fn new(config: Arc<Config>) -> Self {
-		let config_for_communicator = config.clone();
-		Self {
-			communicator: AppCommunicator::new(config_for_communicator),
-			config,
-			prev_image_path: None,
-		}
+	pub fn try_new(config: Arc<Config>) -> anyhow::Result<Self> {
+		let mut selector = RandomFileSelector::new(
+			config.wallpaper_directories().to_vec(),
+			config.image_extensions().to_vec(),
+		);
+		selector.update_matching_files()?;
+
+		Ok(Self {
+			communicator: AppCommunicator::new(config.clone()),
+			image_selector: selector,
+		})
 	}
 
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
-		let excluded_files = [self.prev_image_path.as_deref().unwrap_or(Path::new(""))];
-		let path = select_random_file(
-			&self.config.wallpaper_directories(),
-			&self.config.image_extensions(),
-			&excluded_files,
-		)
-		.unwrap();
-
-		self.prev_image_path = Some(path.clone());
+		let path = self.image_selector.pick_random()?;
 		self.communicator
 			.start_transition_all(ImageWrapper::from_path(&path)?)
 	}

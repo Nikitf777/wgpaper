@@ -7,7 +7,7 @@ mod handlers;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	let config = Arc::new(wgpaper_config::Config::new().unwrap());
-	let app_manager = Arc::new(Mutex::new(AppManager::new(config)));
+	let app_manager = Arc::new(Mutex::new(AppManager::try_new(config).unwrap()));
 
 	HttpServer::new(move || {
 		App::new()
