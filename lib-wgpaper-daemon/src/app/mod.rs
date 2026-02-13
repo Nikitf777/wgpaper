@@ -16,7 +16,6 @@ use smithay_client_toolkit::{
 	shell::wlr_layer::{LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
 	shm::{Shm, ShmHandler},
 };
-use std::fs;
 use wayland_client::protocol::wl_seat;
 use wayland_client::{
 	Connection, QueueHandle,
@@ -57,11 +56,6 @@ impl App {
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
 		let gpu_selector = options.gpu_selector.unwrap_or_default();
-		let shader_source = fs::read_to_string(
-			options
-				.shader_path
-				.expect("wgpaper can't run without a transition shader."),
-		)?;
 		let image = ImageWrapper::from_path(
 			&options
 				.initial_image_path
@@ -81,7 +75,7 @@ impl App {
 
 			wallpaper_state: WallpaperState {
 				gpu_selector,
-				shader_source,
+				shader_source: options.shader_source,
 				current_image: image,
 				transition: ActiveTransition::default(),
 				scaling_mode: options.scaling_mode.unwrap_or_default(),

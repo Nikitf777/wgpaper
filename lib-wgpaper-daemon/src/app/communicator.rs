@@ -4,6 +4,7 @@ use crate::{
 };
 use calloop::channel::{Sender, channel};
 use std::{
+	fs,
 	sync::Arc,
 	thread::{self, JoinHandle},
 };
@@ -17,7 +18,6 @@ pub struct AppCommunicator {
 impl AppCommunicator {
 	pub fn new(config: Arc<Config>) -> Self {
 		let (sender, channel) = channel::<Commands>();
-		let config_for_thread = config.clone();
 		let handle = thread::spawn(move || {
 			let path = select_random_file(
 				&config.wallpaper_directories(),
@@ -26,11 +26,13 @@ impl AppCommunicator {
 			)
 			.expect("failed to select random wallpaper");
 
+			let shader_source = fs::read_to_string(config.shader().unwrap()).unwrap();
+
 			let options = LaunchOptions {
-				gpu_selector: config_for_thread.gpu().cloned(),
-				shader_path: config_for_thread.shader(),
+				gpu_selector: config.gpu().cloned(),
+				shader_source: shader_source,
 				initial_image_path: Some(&path),
-				scaling_mode: config_for_thread.scaling_mode().cloned(),
+				scaling_mode: config.scaling_mode().cloned(),
 			};
 
 			start(channel, options).unwrap();
