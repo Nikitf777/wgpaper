@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use calloop::{EventLoop, channel::Channel};
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use wayland_client::{Connection, globals::registry_queue_init};
@@ -13,10 +11,10 @@ pub mod renderer;
 pub mod transition;
 pub mod utilities;
 
-pub struct LaunchOptions<'a> {
+pub struct LaunchOptions {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
 	pub shader_source: String,
-	pub initial_image_path: Option<&'a Path>,
+	pub initial_image: ImageWrapper,
 	pub scaling_mode: Option<ScalingMode>,
 }
 

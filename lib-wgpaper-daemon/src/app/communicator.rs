@@ -19,7 +19,7 @@ impl AppCommunicator {
 	pub fn new(config: Arc<Config>) -> Self {
 		let (sender, channel) = channel::<Commands>();
 		let handle = thread::spawn(move || {
-			let path = select_random_file(
+			let image_path = select_random_file(
 				&config.wallpaper_directories(),
 				&config.image_extensions(),
 				&[] as &[&str],
@@ -27,11 +27,12 @@ impl AppCommunicator {
 			.expect("failed to select random wallpaper");
 
 			let shader_source = fs::read_to_string(config.shader().unwrap()).unwrap();
+			let image = ImageWrapper::from_path(&image_path).unwrap();
 
 			let options = LaunchOptions {
 				gpu_selector: config.gpu().cloned(),
 				shader_source: shader_source,
-				initial_image_path: Some(&path),
+				initial_image: image,
 				scaling_mode: config.scaling_mode().cloned(),
 			};
 

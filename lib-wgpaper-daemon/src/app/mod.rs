@@ -56,11 +56,6 @@ impl App {
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
 		let gpu_selector = options.gpu_selector.unwrap_or_default();
-		let image = ImageWrapper::from_path(
-			&options
-				.initial_image_path
-				.expect("wgpaper can't run without an initial image."),
-		)?;
 
 		Ok(Self {
 			registry_state,
@@ -76,7 +71,7 @@ impl App {
 			wallpaper_state: WallpaperState {
 				gpu_selector,
 				shader_source: options.shader_source,
-				current_image: image,
+				current_image: options.initial_image,
 				transition: ActiveTransition::default(),
 				scaling_mode: options.scaling_mode.unwrap_or_default(),
 			},
