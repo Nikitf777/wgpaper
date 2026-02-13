@@ -18,7 +18,7 @@ use wgpaper_config::{GpuSelector, ScalingMode};
 use crate::{
 	app::{App, core::WallpaperState},
 	image_wrapper::ImageWrapper,
-	renderer::{Renderer, wgpu_renderer::WgpuRenderer},
+	renderer::{Renderer, wgpu::wgpu_renderer},
 	transition::TransitionProgress,
 };
 
@@ -92,7 +92,7 @@ impl OutputStateEntry {
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<()> {
-		let renderer = WgpuRenderer::new(
+		let renderer = wgpu_renderer::WgpuRenderer::new(
 			conn,
 			&self.layer,
 			self.size,

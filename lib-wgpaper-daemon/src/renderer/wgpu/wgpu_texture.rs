@@ -1,13 +1,13 @@
 use anyhow::*;
 use image::GenericImageView;
 
-pub struct Texture {
+pub struct WgpuTexture {
 	#[allow(unused)]
 	pub texture: wgpu::Texture,
 	pub view: wgpu::TextureView,
 }
 
-impl Texture {
+impl WgpuTexture {
 	pub fn from_bytes(
 		device: &wgpu::Device,
 		queue: &wgpu::Queue,

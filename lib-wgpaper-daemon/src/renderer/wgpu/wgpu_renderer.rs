@@ -1,12 +1,9 @@
-use super::{Renderer, texture::Texture};
+use super::{wgpu_selector, wgpu_texture};
 use crate::{
 	image_wrapper::ImageWrapper,
-	renderer::{
-		GpuSelector,
-		lerp::Lerp,
-		wgpu_selector::{WgpuSelector, select_gpu},
-	},
+	renderer::{self, Renderer},
 	transition::TransitionProgress,
+	utilities::lerp::Lerp,
 };
 use anyhow::Context;
 use csscolorparser::Color;
@@ -104,15 +101,15 @@ pub struct WgpuRenderer {
 	config: wgpu::SurfaceConfiguration,
 	sampler: wgpu::Sampler,
 
-	offscreen_textures: [Texture; 3],
-	to_texture: Texture,
+	offscreen_textures: [wgpu_texture::WgpuTexture; 3],
+	to_texture: wgpu_texture::WgpuTexture,
 	display_texture_idx: usize,
 	render_texture_idx: usize,
 	animation_texture_bind_group_layout: wgpu::BindGroupLayout,
 	animation_texture_bind_group: wgpu::BindGroup,
 	animation_pipeline: wgpu::RenderPipeline,
 
-	scaled_texture: Texture,
+	scaled_texture: wgpu_texture::WgpuTexture,
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
 	per_frame_data: PerFrameDataUniforms,
@@ -123,12 +120,12 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-	const STRETCH_SHADER: &str = include_str!("fragment_stretch.wgsl");
-	const FIT_SHADER: &str = include_str!("fragment_fit.wgsl");
-	const FIT_BG_SHADER: &str = include_str!("fragment_fit_bg_color.wgsl");
-	const COVER_SHADER: &str = include_str!("fragment_cover.wgsl");
-	const CENTER_SHADER: &str = include_str!("fragment_center.wgsl");
-	const CENTER_BG_SHADER: &str = include_str!("fragment_center_bg_color.wgsl");
+	const STRETCH_SHADER: &str = include_str!("shaders/fragment_stretch.wgsl");
+	const FIT_SHADER: &str = include_str!("shaders/fragment_fit.wgsl");
+	const FIT_BG_SHADER: &str = include_str!("shaders/fragment_fit_bg_color.wgsl");
+	const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
+	const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
+	const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
 
 	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
@@ -279,11 +276,15 @@ impl Renderer for WgpuRenderer {
 				.context("Failed to create surface")?
 		};
 
-		let gpu_selector = GpuSelector::from(gpu_selector);
-		let adapter =
-			pollster::block_on(select_gpu(&instance, WgpuSelector::from(gpu_selector))).unwrap_or(
-				pollster::block_on(select_gpu(&instance, WgpuSelector::default()))?,
-			);
+		let gpu_selector = renderer::GpuSelector::from(gpu_selector);
+		let adapter = pollster::block_on(wgpu_selector::select_gpu(
+			&instance,
+			wgpu_selector::WgpuSelector::from(gpu_selector),
+		))
+		.unwrap_or(pollster::block_on(wgpu_selector::select_gpu(
+			&instance,
+			wgpu_selector::WgpuSelector::default(),
+		))?);
 
 		let (device, queue) = adapter
 			.request_device(&wgpu::DeviceDescriptor::default())
@@ -298,7 +299,7 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
-		let initial_texture = Texture::from_rgba8_with_format(
+		let initial_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
 			&device,
 			&queue,
 			(initial_image.width(), initial_image.height()),
@@ -323,7 +324,7 @@ impl Renderer for WgpuRenderer {
 
 		let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("vertex_shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("vertex.wgsl").into()),
+			source: wgpu::ShaderSource::Wgsl(include_str!("shaders/vertex.wgsl").into()),
 		});
 
 		let per_frame_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -366,7 +367,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		// Scaling Pipeline
-		let scaled_texture = Texture::from_rgba8_with_format(
+		let scaled_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
 			&device,
 			&queue,
 			size,
@@ -454,8 +455,8 @@ impl Renderer for WgpuRenderer {
 		});
 
 		// Animation Pipeline
-		let offscreen_textures: [Texture; 3] = core::array::from_fn(|i| {
-			Texture::from_rgba8_with_format(
+		let offscreen_textures: [wgpu_texture::WgpuTexture; 3] = core::array::from_fn(|i| {
+			wgpu_texture::WgpuTexture::from_rgba8_with_format(
 				&device,
 				&queue,
 				size,
@@ -679,7 +680,7 @@ impl Renderer for WgpuRenderer {
 	fn set_next_image(&mut self, image: &ImageWrapper) {
 		self.prev_image_size = self.per_frame_data.texture_size();
 
-		self.to_texture = Texture::from_rgba8_with_format(
+		self.to_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
 			&self.device,
 			&self.queue,
 			(image.width(), image.height()),

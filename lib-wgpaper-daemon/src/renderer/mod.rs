@@ -3,10 +3,7 @@ use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
 use wgpaper_config::ScalingMode;
 
-pub mod lerp;
-pub mod texture;
-pub mod wgpu_renderer;
-pub mod wgpu_selector;
+pub mod wgpu;
 
 pub trait Renderer {
 	fn new(

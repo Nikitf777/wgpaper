@@ -1,7 +1,7 @@
 use std::fmt;
 use wgpu::{Adapter, AdapterInfo, Backends, DeviceType, Instance};
 
-use crate::renderer::GpuSelector;
+use crate::renderer;
 
 /// Selection criteria for GPU adapters
 #[derive(Debug, Clone)]
@@ -29,8 +29,8 @@ impl From<crate::renderer::DeviceType> for DeviceType {
 	}
 }
 
-impl From<GpuSelector> for WgpuSelector {
-	fn from(selector: GpuSelector) -> Self {
+impl From<renderer::GpuSelector> for WgpuSelector {
+	fn from(selector: renderer::GpuSelector) -> Self {
 		Self {
 			index: selector.index,
 			name_substring: selector.name_substring,
@@ -44,7 +44,7 @@ impl From<GpuSelector> for WgpuSelector {
 
 impl Default for WgpuSelector {
 	fn default() -> Self {
-		Self::from(GpuSelector::default())
+		Self::from(renderer::GpuSelector::default())
 	}
 }
 
