@@ -19,8 +19,8 @@ impl AppManager {
 			config.wallpaper_directories().to_vec(),
 			config.image_extensions().to_vec(),
 		);
-		selector.update_matching_files()?;
-		let next_image = ImageWrapper::from_path(&selector.pick_random()?)?;
+		selector.refresh_matching_files()?;
+		let next_image = ImageWrapper::from_path(&selector.pick_next()?)?;
 
 		Ok(Self {
 			communicator: AppCommunicator::new(config.clone()),
@@ -36,9 +36,7 @@ impl AppManager {
 				.expect("next_image should always be populated"),
 		)?;
 
-		self.next_image = Some(ImageWrapper::from_path(
-			&self.image_selector.pick_random()?,
-		)?);
+		self.next_image = Some(ImageWrapper::from_path(&self.image_selector.pick_next()?)?);
 		Ok(())
 	}
 }

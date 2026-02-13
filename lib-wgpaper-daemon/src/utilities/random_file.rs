@@ -1,4 +1,4 @@
-use rand::{prelude::IndexedRandom, rng};
+use rand::{RngExt, prelude::IndexedRandom, rng};
 use std::{
 	fs,
 	path::{Path, PathBuf},
@@ -112,8 +112,8 @@ where
 pub struct RandomFileSelector {
 	directories: Vec<PathBuf>,
 	extensions: Vec<String>,
-	prev_file: PathBuf,
 	matching_files: Vec<PathBuf>,
+	prev_index: Option<usize>,
 }
 
 impl RandomFileSelector {
@@ -121,39 +121,46 @@ impl RandomFileSelector {
 		Self {
 			directories,
 			extensions,
-			prev_file: Path::new("").to_path_buf(),
 			matching_files: Vec::new(),
+			prev_index: None,
 		}
 	}
 
-	pub fn update_matching_files(&mut self) -> Result<(), RandomFileError> {
+	pub fn refresh_matching_files(&mut self) -> Result<(), RandomFileError> {
 		self.matching_files.clear();
-
 		fill_matching_files(
 			&self.directories,
 			&self.extensions,
-			&[&self.prev_file],
-			self.matching_files.as_mut(),
-		)
+			&[] as &[&Path],
+			&mut self.matching_files,
+		)?;
+		self.prev_index = None;
+		Ok(())
 	}
 
-	pub fn pick_random(&mut self) -> Result<PathBuf, RandomFileError> {
+	pub fn pick_next(&mut self) -> Result<PathBuf, RandomFileError> {
 		if self.matching_files.is_empty() {
 			return Err(RandomFileError::NoMatchingFiles {
 				extensions: self.extensions.clone(),
 			});
 		}
 
-		let mut rng = rng();
-		self.prev_file = self
-			.matching_files
-			.choose(&mut rng)
-			.cloned()
-			.ok_or_else(|| RandomFileError::NoMatchingFiles {
-				extensions: self.extensions.clone(),
-			})?;
+		if self.matching_files.len() == 1 {
+			self.prev_index = Some(0);
+			return Ok(self.matching_files[0].clone());
+		}
 
-		Ok(self.prev_file.clone())
+		let mut rng = rng();
+		let mut new_index;
+		loop {
+			new_index = rng.random_range(0..self.matching_files.len());
+			if Some(new_index) != self.prev_index {
+				break;
+			}
+		}
+
+		self.prev_index = Some(new_index);
+		Ok(self.matching_files[new_index].clone())
 	}
 }
 
