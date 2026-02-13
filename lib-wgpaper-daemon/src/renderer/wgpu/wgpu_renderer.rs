@@ -1,7 +1,10 @@
 use super::{wgpu_selector, wgpu_texture};
 use crate::{
 	image_wrapper::ImageWrapper,
-	renderer::{self, Renderer},
+	renderer::{
+		self, Renderer,
+		wgpu::wgpu_utilities::{self},
+	},
 	transition::TransitionProgress,
 	utilities::lerp::Lerp,
 };
@@ -187,24 +190,11 @@ impl WgpuRenderer {
 	}
 
 	fn render_scale(&self, encoder: &mut CommandEncoder) {
-		let mut scaling_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-			label: Some("scaling_render_pass"),
-			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-				view: &self.scaled_texture.view,
-				resolve_target: None,
-				ops: wgpu::Operations {
-					load: wgpu::LoadOp::Clear(wgpu::Color {
-						r: 0.1,
-						g: 0.2,
-						b: 0.3,
-						a: 1.0,
-					}),
-					store: wgpu::StoreOp::Store,
-				},
-				depth_slice: None,
-			})],
-			..Default::default()
-		});
+		let mut scaling_render_pass = wgpu_utilities::begin_render_pass(
+			encoder,
+			wgpu_utilities::create_color_attachment(&self.scaled_texture.view),
+			&"scaling_render_pass",
+		);
 
 		scaling_render_pass.set_pipeline(&self.scaling_pipeline);
 		scaling_render_pass.set_bind_group(0, &self.scaling_texture_bind_group, &[]);
@@ -213,24 +203,13 @@ impl WgpuRenderer {
 	}
 
 	fn render_animation(&self, encoder: &mut CommandEncoder) {
-		let mut animation_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-			label: Some("animation_render_pass"),
-			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-				view: &self.offscreen_textures[self.render_texture_idx].view,
-				resolve_target: None,
-				ops: wgpu::Operations {
-					load: wgpu::LoadOp::Clear(wgpu::Color {
-						r: 0.1,
-						g: 0.2,
-						b: 0.3,
-						a: 1.0,
-					}),
-					store: wgpu::StoreOp::Store,
-				},
-				depth_slice: None,
-			})],
-			..Default::default()
-		});
+		let mut animation_render_pass = wgpu_utilities::begin_render_pass(
+			encoder,
+			wgpu_utilities::create_color_attachment(
+				&self.offscreen_textures[self.render_texture_idx].view,
+			),
+			&"animation_render_pass",
+		);
 
 		animation_render_pass.set_pipeline(&self.animation_pipeline);
 		animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
