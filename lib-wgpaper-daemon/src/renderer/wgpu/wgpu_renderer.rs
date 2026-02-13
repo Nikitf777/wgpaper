@@ -3,7 +3,10 @@ use crate::{
 	image_wrapper::ImageWrapper,
 	renderer::{
 		self, Renderer,
-		wgpu::wgpu_utilities::{self},
+		wgpu::{
+			wgpu_shaders,
+			wgpu_utilities::{self},
+		},
 	},
 	transition::TransitionProgress,
 	utilities::lerp::Lerp,
@@ -17,7 +20,7 @@ use raw_window_handle::{
 use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
-use wgpaper_config::{Background, ScalingMode};
+use wgpaper_config::ScalingMode;
 use wgpu::{Buffer, CommandEncoder, Queue, SurfaceError};
 
 #[repr(C)]
@@ -99,70 +102,8 @@ pub struct WgpuRenderer {
 }
 
 impl WgpuRenderer {
-	const STRETCH_SHADER: &str = include_str!("shaders/fragment_stretch.wgsl");
-	const FIT_SHADER: &str = include_str!("shaders/fragment_fit.wgsl");
-	const FIT_BG_SHADER: &str = include_str!("shaders/fragment_fit_bg_color.wgsl");
-	const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
-	const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
-	const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
-
 	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
-	}
-
-	fn get_address_mode_and_bg_color(scaling_mode: &ScalingMode) -> (wgpu::AddressMode, Color) {
-		match scaling_mode {
-			ScalingMode::Fit { background } | ScalingMode::Center { background } => {
-				if background == &Background::Repeat {
-					(wgpu::AddressMode::Repeat, Color::default())
-				} else {
-					(
-						wgpu::AddressMode::MirrorRepeat,
-						if let Background::CssColor(color) = background {
-							color.clone()
-						} else {
-							Color::default()
-						},
-					)
-				}
-			}
-			ScalingMode::Stretch | ScalingMode::Cover => {
-				(wgpu::AddressMode::MirrorRepeat, Color::default())
-			}
-		}
-	}
-
-	fn create_scaling_fragment_shader(
-		device: &wgpu::Device,
-		mode: &ScalingMode,
-	) -> wgpu::ShaderModule {
-		let (shader, name_postfix) = match mode {
-			ScalingMode::Fit { background } => {
-				if matches!(background, Background::AutoColor)
-					|| matches!(background, Background::CssColor(_))
-				{
-					(Self::FIT_BG_SHADER, "fit_bg_color")
-				} else {
-					(Self::FIT_SHADER, "fit")
-				}
-			}
-			ScalingMode::Center { background } => {
-				if matches!(background, Background::AutoColor)
-					|| matches!(background, Background::CssColor(_))
-				{
-					(Self::CENTER_BG_SHADER, "center_bg_color")
-				} else {
-					(Self::CENTER_SHADER, "center")
-				}
-			}
-			ScalingMode::Stretch => (Self::STRETCH_SHADER, "stretch"),
-			ScalingMode::Cover => (Self::COVER_SHADER, "cover"),
-		};
-
-		device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some(&format!("scaling_fragment_shader_{}", name_postfix)),
-			source: wgpu::ShaderSource::Wgsl(shader.into()),
-		})
 	}
 
 	fn render_scale(&self, encoder: &mut CommandEncoder) {
@@ -259,7 +200,7 @@ impl Renderer for WgpuRenderer {
 
 		let data = vec![0u8; (size.0 * size.1 * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
-		let (address_mode, bg_color) = Self::get_address_mode_and_bg_color(scaling_mode);
+		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(scaling_mode);
 
 		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("sampler"),
@@ -365,7 +306,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let scaling_fragment_shader =
-			WgpuRenderer::create_scaling_fragment_shader(&device, scaling_mode);
+			wgpu_shaders::create_scaling_fragment_shader(&device, scaling_mode);
 
 		let scaling_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

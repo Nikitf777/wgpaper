@@ -1,4 +1,30 @@
+use csscolorparser::Color;
+use wgpaper_config::{Background, ScalingMode};
 use wgpu::{CommandEncoder, RenderPass, RenderPassColorAttachment, TextureView};
+
+pub(super) fn get_address_mode_and_bg_color(
+	scaling_mode: &ScalingMode,
+) -> (wgpu::AddressMode, Color) {
+	match scaling_mode {
+		ScalingMode::Fit { background } | ScalingMode::Center { background } => {
+			if background == &Background::Repeat {
+				(wgpu::AddressMode::Repeat, Color::default())
+			} else {
+				(
+					wgpu::AddressMode::MirrorRepeat,
+					if let Background::CssColor(color) = background {
+						color.clone()
+					} else {
+						Color::default()
+					},
+				)
+			}
+		}
+		ScalingMode::Stretch | ScalingMode::Cover => {
+			(wgpu::AddressMode::MirrorRepeat, Color::default())
+		}
+	}
+}
 
 pub(super) fn create_color_attachment<'tex>(
 	view: &'tex TextureView,
