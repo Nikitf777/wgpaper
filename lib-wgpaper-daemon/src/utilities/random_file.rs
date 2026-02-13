@@ -39,7 +39,8 @@ pub enum RandomFileError {
 /// ```
 /// let file = select_random_file(
 ///     &["/tmp/dir1", "/tmp/dir2"],
-///     &[".txt", ".log"]
+///     &[".txt", ".log"],
+///     &["/path/to/excluded_file"]
 /// ).unwrap();
 /// ```
 pub fn select_random_file<P, E, F>(
