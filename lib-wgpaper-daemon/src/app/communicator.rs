@@ -1,5 +1,5 @@
 use crate::{
-	Commands, GlobalOptions, image_wrapper::ImageWrapper, start,
+	Commands, LaunchOptions, image_wrapper::ImageWrapper, start,
 	utilities::random_file::select_random_file,
 };
 use calloop::channel::{Sender, channel};
@@ -26,7 +26,7 @@ impl AppCommunicator {
 			)
 			.expect("failed to select random wallpaper");
 
-			let options = GlobalOptions {
+			let options = LaunchOptions {
 				gpu_selector: config_for_thread.gpu().cloned(),
 				shader_path: config_for_thread.shader(),
 				initial_image_path: Some(&path),

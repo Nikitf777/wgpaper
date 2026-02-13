@@ -1,5 +1,5 @@
 use crate::{
-	GlobalOptions,
+	LaunchOptions,
 	app::{core::WallpaperState, output::OutputManager},
 	image_wrapper::ImageWrapper,
 	transition::ActiveTransition,
@@ -47,7 +47,7 @@ impl App {
 	pub fn new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
-		options: GlobalOptions,
+		options: LaunchOptions,
 	) -> anyhow::Result<Self> {
 		let registry_state = RegistryState::new(&globals);
 		let seat_state = SeatState::new(&globals, &qh);
