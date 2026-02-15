@@ -3,6 +3,7 @@ use crate::{
 	utilities::random_file::RandomFileSelector,
 };
 use anyhow::Context;
+use log::warn;
 use std::sync::Arc;
 use wgpaper_config::Config;
 
@@ -29,13 +30,25 @@ impl AppManager {
 	}
 
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
-		self.communicator.start_transition_all(
-			self.next_image
-				.take()
-				.context("The target image is not specified")?,
-		)?;
+		match self
+			.next_image
+			.take()
+			.context("The target image is not specified.")
+		{
+			Ok(image) => self.communicator.start_transition_all(image)?,
+			Err(err) => {
+				warn!("{}. Skipping starting the transition...", err.to_string())
+			}
+		}
+
 		self.next_image = if let Ok(path) = &self.image_selector.pick_next() {
-			Some(ImageWrapper::from_path(path)?)
+			match ImageWrapper::from_path(path) {
+				Ok(image) => Some(image),
+				Err(err) => {
+					warn!("Failed to pick the next image: {}", err.to_string());
+					None
+				}
+			}
 		} else {
 			None
 		};
