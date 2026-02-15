@@ -73,7 +73,7 @@ impl App {
 				shader_source: options.shader_source,
 				current_image: options.initial_image,
 				transition: ActiveTransition::default(),
-				scaling_mode: options.scaling_mode.unwrap_or_default(),
+				scaling_mode: options.scaling_mode,
 			},
 		})
 	}

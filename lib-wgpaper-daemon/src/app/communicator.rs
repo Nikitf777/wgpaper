@@ -37,7 +37,7 @@ impl AppCommunicator {
 				gpu_selector: config.gpu().cloned(),
 				shader_source: shader_source,
 				initial_image: image,
-				scaling_mode: config.scaling_mode().cloned(),
+				scaling_mode: config.scaling_mode().clone(),
 			};
 
 			start(channel, options).unwrap();

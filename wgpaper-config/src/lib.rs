@@ -122,7 +122,8 @@ pub struct Config {
 	#[serde(default = "image_extensions_default")]
 	image_extensions: Vec<String>,
 
-	scaling_mode: Option<ScalingMode>,
+	#[serde(default)]
+	scaling_mode: ScalingMode,
 	listen_socket: Option<ListenSocket>,
 	gpu: Option<GpuSelector>,
 }
@@ -176,8 +177,8 @@ impl Config {
 	}
 
 	/// Returns the scaling strategy if configured
-	pub fn scaling_mode(&self) -> Option<&ScalingMode> {
-		self.scaling_mode.as_ref()
+	pub fn scaling_mode(&self) -> &ScalingMode {
+		&self.scaling_mode
 	}
 
 	/// Returns the listen socket configuration if set
