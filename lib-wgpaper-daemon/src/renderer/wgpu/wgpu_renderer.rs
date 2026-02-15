@@ -142,11 +142,10 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
-		let initial_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
+		let initial_texture = wgpu_texture::WgpuTexture::from_image(
 			&device,
 			&queue,
-			(initial_image.width(), initial_image.height()),
-			initial_image.as_slice(),
+			initial_image,
 			"to_texture",
 			surface_format,
 		)?;
@@ -489,11 +488,10 @@ impl Renderer for WgpuRenderer {
 	fn set_next_image(&mut self, image: &ImageWrapper) {
 		self.prev_image_size = self.per_frame_uniform_manager.texture_size();
 
-		self.to_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
+		self.to_texture = wgpu_texture::WgpuTexture::from_image(
 			&self.device,
 			&self.queue,
-			(image.width(), image.height()),
-			image.as_slice(),
+			&image,
 			"to_texture",
 			self.config.format,
 		)
