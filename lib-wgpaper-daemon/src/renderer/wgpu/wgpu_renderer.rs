@@ -5,6 +5,7 @@ use crate::{
 		self, Renderer,
 		wgpu::{
 			wgpu_shaders,
+			wgpu_uniforms::PerFrameUniformManager,
 			wgpu_utilities::{self},
 		},
 	},
@@ -12,7 +13,6 @@ use crate::{
 	utilities::lerp::Lerp,
 };
 use anyhow::Context;
-use csscolorparser::Color;
 use pollster::FutureExt;
 use raw_window_handle::{
 	RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
@@ -21,60 +21,7 @@ use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use std::ptr::NonNull;
 use wayland_client::{Connection, Proxy};
 use wgpaper_config::ScalingMode;
-use wgpu::{Buffer, CommandEncoder, Queue, SurfaceError};
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct PerFrameDataUniforms {
-	screen_size: [f32; 2],
-	texture_size: [f32; 2],
-	screen_aspect: f32,
-	texture_aspect: f32,
-	progress: [f32; 2],
-	bg_color: [f32; 4],
-	_padding: [u8; 224],
-}
-
-impl PerFrameDataUniforms {
-	fn new(
-		screen_size: (f32, f32),
-		texture_size: (f32, f32),
-		progress: TransitionProgress,
-		bg_color: Color,
-	) -> Self {
-		Self {
-			screen_size: unsafe { std::mem::transmute(screen_size) },
-			texture_size: unsafe { std::mem::transmute(texture_size) },
-			screen_aspect: screen_size.0 / screen_size.1,
-			texture_aspect: texture_size.0 / texture_size.1,
-			progress: unsafe { std::mem::transmute(progress) },
-			bg_color: unsafe { std::mem::transmute(bg_color) },
-			_padding: [0u8; 224],
-		}
-	}
-
-	fn texture_size(&self) -> (f32, f32) {
-		unsafe { std::mem::transmute(self.texture_size) }
-	}
-
-	fn transition_progress(&self) -> TransitionProgress {
-		unsafe { std::mem::transmute(self.progress) }
-	}
-
-	fn update_screen_size(&mut self, new_size: (f32, f32)) {
-		self.screen_size = unsafe { std::mem::transmute(new_size) };
-		self.screen_aspect = new_size.0 / new_size.1;
-	}
-
-	fn update_texture_size(&mut self, new_size: (f32, f32)) {
-		self.texture_size = unsafe { std::mem::transmute(new_size) };
-		self.texture_aspect = new_size.0 / new_size.1;
-	}
-
-	fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
-		self.progress = unsafe { std::mem::transmute(new_progress) };
-	}
-}
+use wgpu::{CommandEncoder, SurfaceError};
 
 pub struct WgpuRenderer {
 	device: wgpu::Device,
@@ -94,22 +41,21 @@ pub struct WgpuRenderer {
 	scaled_texture: wgpu_texture::WgpuTexture,
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
-	per_frame_data: PerFrameDataUniforms,
-	per_frame_data_uniform_buffer: Buffer,
-	per_frame_data_bind_group: wgpu::BindGroup,
+	per_frame_uniform_manager: PerFrameUniformManager,
 	prev_image_size: (f32, f32),
 	scaling_pipeline: wgpu::RenderPipeline,
 }
 
 impl WgpuRenderer {
-	fn write_per_frame_data(data: &PerFrameDataUniforms, queue: &Queue, buffer: &Buffer) {
-		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
-	}
-
-	pub(super) fn render_pass<'tex>(&self, render_pass: &mut wgpu::RenderPass<'tex>, pipeline: &wgpu::RenderPipeline, texture_bind_group: &wgpu::BindGroup) {
+	pub(super) fn render_pass<'tex>(
+		&self,
+		render_pass: &mut wgpu::RenderPass<'tex>,
+		pipeline: &wgpu::RenderPipeline,
+		texture_bind_group: &wgpu::BindGroup,
+	) {
 		render_pass.set_pipeline(&pipeline);
 		render_pass.set_bind_group(0, texture_bind_group, &[]);
-		render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
+		render_pass.set_bind_group(1, self.per_frame_uniform_manager.bind_group(), &[]);
 		render_pass.draw(0..3, 0..1);
 	}
 
@@ -119,7 +65,11 @@ impl WgpuRenderer {
 			wgpu_utilities::create_color_attachment(&self.scaled_texture.view),
 			&"scaling_render_pass",
 		);
-		self.render_pass(&mut scaling_render_pass, &self.scaling_pipeline, &self.scaling_texture_bind_group);
+		self.render_pass(
+			&mut scaling_render_pass,
+			&self.scaling_pipeline,
+			&self.scaling_texture_bind_group,
+		);
 	}
 
 	fn render_animation(&self, encoder: &mut CommandEncoder) {
@@ -130,7 +80,11 @@ impl WgpuRenderer {
 			),
 			&"animation_render_pass",
 		);
-		self.render_pass(&mut animation_render_pass, &self.animation_pipeline, &self.animation_texture_bind_group);
+		self.render_pass(
+			&mut animation_render_pass,
+			&self.animation_pipeline,
+			&self.animation_texture_bind_group,
+		);
 	}
 }
 
@@ -216,44 +170,15 @@ impl Renderer for WgpuRenderer {
 			source: wgpu::ShaderSource::Wgsl(include_str!("shaders/vertex.wgsl").into()),
 		});
 
-		let per_frame_data_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("per_frame_data_uniform_buffer"),
-			size: std::mem::size_of::<PerFrameDataUniforms>() as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
-		let mut per_frame_data = PerFrameDataUniforms::new(
-			(size.0 as f32, size.1 as f32),
-			(initial_image.width() as f32, initial_image.height() as f32),
-			TransitionProgress::reset(),
-			bg_color,
-		);
-		WgpuRenderer::write_per_frame_data(&per_frame_data, &queue, &per_frame_data_uniform_buffer);
-		per_frame_data.update_transition_progress(TransitionProgress::finished()); // Mark that there's no ongoing transition
-
-		let per_frame_data_bind_group_layout =
-			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-				entries: &[wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Uniform,
-						has_dynamic_offset: false,
-						min_binding_size: wgpu::BufferSize::new(256),
-					},
-					count: None,
-				}],
-				label: Some("per_frame_data_bind_group_layout"),
-			});
-
-		let per_frame_data_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &per_frame_data_bind_group_layout,
-			entries: &[wgpu::BindGroupEntry {
-				binding: 0,
-				resource: per_frame_data_uniform_buffer.as_entire_binding(),
-			}],
-			label: Some("per_frame_data_bind_group"),
-		});
+		let (mut per_frame_uniform_manager, per_frame_data_bind_group_layout) =
+			PerFrameUniformManager::new(
+				&device,
+				(size.0 as f32, size.1 as f32),
+				(initial_image.width() as f32, initial_image.height() as f32),
+				bg_color,
+			);
+		per_frame_uniform_manager.write_data(&queue);
+		per_frame_uniform_manager.update_transition_progress(TransitionProgress::finished()); // Mark that there's no ongoing transition
 
 		// Scaling Pipeline
 		let scaled_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
@@ -485,9 +410,7 @@ impl Renderer for WgpuRenderer {
 			scaled_texture,
 			scaling_texture_bind_group_layout,
 			scaling_texture_bind_group,
-			per_frame_data,
-			per_frame_data_uniform_buffer,
-			per_frame_data_bind_group,
+			per_frame_uniform_manager,
 			prev_image_size: image_size_f32,
 			scaling_pipeline,
 		})
@@ -540,17 +463,17 @@ impl Renderer for WgpuRenderer {
 		self.config.width = size.0;
 		self.config.height = size.1;
 		self.surface.configure(&self.device, &self.config);
-		self.per_frame_data
+		self.per_frame_uniform_manager
 			.update_screen_size((size.0 as f32, size.1 as f32));
 		Ok(())
 	}
 
 	fn get_transition_progress(&self) -> TransitionProgress {
-		self.per_frame_data.transition_progress()
+		self.per_frame_uniform_manager.transition_progress()
 	}
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress) {
-		self.per_frame_data
+		self.per_frame_uniform_manager
 			.update_texture_size(self.prev_image_size.lerp(
 				(
 					self.to_texture.texture.width() as f32,
@@ -558,16 +481,13 @@ impl Renderer for WgpuRenderer {
 				),
 				progress.progress_bezier,
 			));
-		self.per_frame_data.update_transition_progress(progress);
-		WgpuRenderer::write_per_frame_data(
-			&self.per_frame_data,
-			&self.queue,
-			&self.per_frame_data_uniform_buffer,
-		);
+		self.per_frame_uniform_manager
+			.update_transition_progress(progress);
+		self.per_frame_uniform_manager.write_data(&self.queue);
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		self.prev_image_size = self.per_frame_data.texture_size();
+		self.prev_image_size = self.per_frame_uniform_manager.texture_size();
 
 		self.to_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
 			&self.device,
