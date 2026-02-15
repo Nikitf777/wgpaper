@@ -1,4 +1,5 @@
 use calloop::{EventLoop, channel::Channel};
+use log::info;
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use wayland_client::{Connection, globals::registry_queue_init};
 use wgpaper_config::ScalingMode;
@@ -25,11 +26,19 @@ pub enum Commands {
 }
 
 pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Result<()> {
+	info!("Connecting to a Wayland server...");
 	let conn = Connection::connect_to_env()?;
+	info!("Success!");
+
+	info!("Initializing an event queue...");
 	let (globals, event_queue) = registry_queue_init(&conn)?;
+	info!("Success!");
+
 	let qh = event_queue.handle();
 
-	let mut event_loop = EventLoop::<App>::try_new().unwrap();
+	info!("Initializing an event loop...");
+	let mut event_loop = EventLoop::<App>::try_new()?;
+	info!("Success!");
 
 	let loop_handle = event_loop.handle();
 	loop_handle
@@ -47,9 +56,11 @@ pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Resu
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::new(globals, qh, options)?;
+	let mut app = App::try_new(globals, qh, options)?;
 
-	event_loop.run(None, &mut app, |_| {}).unwrap();
+	info!("Starting the event loop...");
+	event_loop.run(None, &mut app, |_| {})?;
+	info!("Event loop stopped.");
 
 	Ok(())
 }

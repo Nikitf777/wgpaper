@@ -43,7 +43,7 @@ pub struct App {
 }
 
 impl App {
-	pub fn new(
+	pub fn try_new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
 		options: LaunchOptions,
