@@ -1,4 +1,5 @@
 use wgpaper_config::{Background, ScalingMode};
+use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
 
 const STRETCH_SHADER: &str = include_str!("shaders/fragment_stretch.wgsl");
 const FIT_SHADER: &str = include_str!("shaders/fragment_fit.wgsl");
@@ -7,10 +8,7 @@ const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
 const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
 const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
 
-pub fn create_scaling_fragment_shader(
-	device: &wgpu::Device,
-	mode: &ScalingMode,
-) -> wgpu::ShaderModule {
+pub fn create_scaling_fragment_shader(device: &Device, mode: &ScalingMode) -> ShaderModule {
 	let (shader, name_postfix) = match mode {
 		ScalingMode::Fit { background } => {
 			if matches!(background, Background::AutoColor)
@@ -34,8 +32,8 @@ pub fn create_scaling_fragment_shader(
 		ScalingMode::Cover => (COVER_SHADER, "cover"),
 	};
 
-	device.create_shader_module(wgpu::ShaderModuleDescriptor {
+	device.create_shader_module(ShaderModuleDescriptor {
 		label: Some(&format!("scaling_fragment_shader_{}", name_postfix)),
-		source: wgpu::ShaderSource::Wgsl(shader.into()),
+		source: ShaderSource::Wgsl(shader.into()),
 	})
 }
