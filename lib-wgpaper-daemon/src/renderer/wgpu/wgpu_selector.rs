@@ -16,15 +16,15 @@ pub struct WgpuSelector {
 	pub backends: Option<Backends>,
 }
 
-impl From<crate::renderer::DeviceType> for DeviceType {
+impl From<renderer::DeviceType> for DeviceType {
 	#[inline]
-	fn from(src: crate::renderer::DeviceType) -> Self {
+	fn from(src: renderer::DeviceType) -> Self {
 		match src {
-			crate::renderer::DeviceType::Other => DeviceType::Other,
-			crate::renderer::DeviceType::IntegratedGpu => DeviceType::IntegratedGpu,
-			crate::renderer::DeviceType::DiscreteGpu => DeviceType::DiscreteGpu,
-			crate::renderer::DeviceType::VirtualGpu => DeviceType::VirtualGpu,
-			crate::renderer::DeviceType::Cpu => DeviceType::Cpu,
+			renderer::DeviceType::Other => DeviceType::Other,
+			renderer::DeviceType::IntegratedGpu => DeviceType::IntegratedGpu,
+			renderer::DeviceType::DiscreteGpu => DeviceType::DiscreteGpu,
+			renderer::DeviceType::VirtualGpu => DeviceType::VirtualGpu,
+			renderer::DeviceType::Cpu => DeviceType::Cpu,
 		}
 	}
 }
