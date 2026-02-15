@@ -104,7 +104,7 @@ fn wallpaper_directories_default() -> Vec<PathBuf> {
 }
 
 fn image_extensions_default() -> Vec<String> {
-	vec![".jpg".to_string(), ".png".to_string()]
+	vec!["jpg".to_string(), "png".to_string()]
 }
 
 #[derive(Deserialize)]
