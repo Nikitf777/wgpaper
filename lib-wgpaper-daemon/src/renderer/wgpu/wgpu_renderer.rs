@@ -138,15 +138,7 @@ impl Renderer for WgpuRenderer {
 
 		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(scaling_mode);
 
-		let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-			label: Some("sampler"),
-			address_mode_u: address_mode,
-			address_mode_v: address_mode,
-			mag_filter: wgpu::FilterMode::Linear,
-			min_filter: wgpu::FilterMode::Linear,
-			mipmap_filter: wgpu::MipmapFilterMode::Nearest,
-			..Default::default()
-		});
+		let sampler = wgpu_utilities::create_sampler(&device, address_mode);
 
 		let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("vertex_shader"),

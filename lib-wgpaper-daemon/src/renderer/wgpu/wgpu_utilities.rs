@@ -8,8 +8,8 @@ use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
-	AddressMode, CommandEncoder, Instance, LoadOp, Operations, RenderPass,
-	RenderPassColorAttachment, RenderPassDescriptor, StoreOp, Surface, TextureView,
+	AddressMode, CommandEncoder, Device, Instance, LoadOp, Operations, RenderPass,
+	RenderPassColorAttachment, RenderPassDescriptor, Sampler, StoreOp, Surface, TextureView,
 };
 
 pub fn create_surface<'a>(
@@ -56,6 +56,18 @@ pub fn get_address_mode_and_bg_color(
 			(AddressMode::MirrorRepeat, csscolorparser::Color::default())
 		}
 	}
+}
+
+pub fn create_sampler(device: &Device, address_mode: AddressMode) -> Sampler {
+	device.create_sampler(&wgpu::SamplerDescriptor {
+		label: Some("sampler"),
+		address_mode_u: address_mode,
+		address_mode_v: address_mode,
+		mag_filter: wgpu::FilterMode::Linear,
+		min_filter: wgpu::FilterMode::Linear,
+		mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+		..Default::default()
+	})
 }
 
 pub fn create_color_attachment<'tex>(view: &'tex TextureView) -> RenderPassColorAttachment<'tex> {
