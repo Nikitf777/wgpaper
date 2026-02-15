@@ -7,16 +7,27 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+#[derive(Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Background {
+	AutoColor,
+	CssColor(Color),
+	Repeat,
+	MirrorRepeat,
+}
+
 #[derive(Deserialize, Clone, PartialEq, Default, strum_macros::Display)]
 #[serde(rename_all = "snake_case")]
 pub enum ScalingMode {
 	Stretch,
 	Fit {
+		#[serde(default)]
 		background: Background,
 	},
 	#[default]
 	Cover,
 	Center {
+		#[serde(default)]
 		background: Background,
 	},
 }
@@ -54,15 +65,6 @@ pub enum DeviceType {
 	DiscreteGpu,
 	VirtualGpu,
 	Cpu,
-}
-
-#[derive(Clone, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum Background {
-	AutoColor,
-	CssColor(Color),
-	Repeat,
-	MirrorRepeat,
 }
 
 impl Default for Background {
