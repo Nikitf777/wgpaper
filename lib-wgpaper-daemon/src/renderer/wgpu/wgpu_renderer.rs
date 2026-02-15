@@ -106,17 +106,20 @@ impl WgpuRenderer {
 		queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 	}
 
+	pub(super) fn render_pass<'tex>(&self, render_pass: &mut wgpu::RenderPass<'tex>, pipeline: &wgpu::RenderPipeline, texture_bind_group: &wgpu::BindGroup) {
+		render_pass.set_pipeline(&pipeline);
+		render_pass.set_bind_group(0, texture_bind_group, &[]);
+		render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
+		render_pass.draw(0..3, 0..1);
+	}
+
 	fn render_scale(&self, encoder: &mut CommandEncoder) {
 		let mut scaling_render_pass = wgpu_utilities::begin_render_pass(
 			encoder,
 			wgpu_utilities::create_color_attachment(&self.scaled_texture.view),
 			&"scaling_render_pass",
 		);
-
-		scaling_render_pass.set_pipeline(&self.scaling_pipeline);
-		scaling_render_pass.set_bind_group(0, &self.scaling_texture_bind_group, &[]);
-		scaling_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
-		scaling_render_pass.draw(0..3, 0..1);
+		self.render_pass(&mut scaling_render_pass, &self.scaling_pipeline, &self.scaling_texture_bind_group);
 	}
 
 	fn render_animation(&self, encoder: &mut CommandEncoder) {
@@ -127,11 +130,7 @@ impl WgpuRenderer {
 			),
 			&"animation_render_pass",
 		);
-
-		animation_render_pass.set_pipeline(&self.animation_pipeline);
-		animation_render_pass.set_bind_group(0, &self.animation_texture_bind_group, &[]);
-		animation_render_pass.set_bind_group(1, &self.per_frame_data_bind_group, &[]);
-		animation_render_pass.draw(0..3, 0..1);
+		self.render_pass(&mut animation_render_pass, &self.animation_pipeline, &self.animation_texture_bind_group);
 	}
 }
 
