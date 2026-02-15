@@ -88,7 +88,7 @@ impl OutputStateEntry {
 		&mut self,
 		conn: &Connection,
 		gpu_selector: GpuSelector,
-		animation_shader: &str,
+		shader_source: Option<&str>,
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<()> {
@@ -97,7 +97,7 @@ impl OutputStateEntry {
 			&self.layer,
 			self.size,
 			gpu_selector,
-			animation_shader,
+			shader_source,
 			initial_image,
 			scaling_mode,
 		)?;
@@ -240,7 +240,7 @@ impl OutputManager {
 				if let Err(e) = output.init_renderer(
 					conn,
 					wallpaper_state.gpu_selector.clone(),
-					&wallpaper_state.shader_source,
+					wallpaper_state.shader_source.as_deref(),
 					&wallpaper_state.current_image,
 					&wallpaper_state.scaling_mode,
 				) {

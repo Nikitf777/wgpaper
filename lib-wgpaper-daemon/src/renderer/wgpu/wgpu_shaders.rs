@@ -8,6 +8,8 @@ const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
 const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
 const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
 
+const DEFAULT_TRANSITION_SHADER: &str = include_str!("shaders/default_transition.wgsl");
+
 pub fn create_scaling_fragment_shader(device: &Device, mode: &ScalingMode) -> ShaderModule {
 	let (shader, name_postfix) = match mode {
 		ScalingMode::Fit { background } => {
@@ -35,5 +37,12 @@ pub fn create_scaling_fragment_shader(device: &Device, mode: &ScalingMode) -> Sh
 	device.create_shader_module(ShaderModuleDescriptor {
 		label: Some(&format!("scaling_fragment_shader_{}", name_postfix)),
 		source: ShaderSource::Wgsl(shader.into()),
+	})
+}
+
+pub fn create_animation_shader(device: &Device, shader_source: Option<&str>) -> ShaderModule {
+	device.create_shader_module(wgpu::ShaderModuleDescriptor {
+		label: Some("animation_shader"),
+		source: wgpu::ShaderSource::Wgsl(shader_source.unwrap_or(DEFAULT_TRANSITION_SHADER).into()),
 	})
 }

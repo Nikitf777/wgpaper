@@ -11,7 +11,7 @@ pub trait Renderer {
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
 		gpu_selector: wgpaper_config::GpuSelector,
-		animation_shader: &str,
+		shader_source: Option<&str>,
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self>

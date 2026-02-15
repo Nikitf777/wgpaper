@@ -26,7 +26,11 @@ impl AppCommunicator {
 			)
 			.expect("failed to select random wallpaper");
 
-			let shader_source = fs::read_to_string(config.shader().unwrap()).unwrap();
+			let shader_source = if let Some(shader_path) = config.shader() {
+				fs::read_to_string(shader_path).ok()
+			} else {
+				None
+			};
 			let image = ImageWrapper::from_path(&image_path).unwrap();
 
 			let options = LaunchOptions {

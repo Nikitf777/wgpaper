@@ -90,7 +90,7 @@ impl Renderer for WgpuRenderer {
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
 		gpu_selector: wgpaper_config::GpuSelector,
-		animation_shader: &str,
+		shader_source: Option<&str>,
 		initial_image: &ImageWrapper,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self> {
@@ -318,10 +318,7 @@ impl Renderer for WgpuRenderer {
 			label: Some("animation_texture_bind_group"),
 		});
 
-		let animation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("animation_shader"),
-			source: wgpu::ShaderSource::Wgsl(animation_shader.into()),
-		});
+		let animation_shader = wgpu_shaders::create_animation_shader(&device, shader_source);
 
 		let animation_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
