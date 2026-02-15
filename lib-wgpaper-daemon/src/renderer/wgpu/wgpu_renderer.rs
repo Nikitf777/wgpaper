@@ -6,7 +6,7 @@ use crate::{
 		wgpu::{
 			wgpu_shaders,
 			wgpu_uniforms::PerFrameUniformManager,
-			wgpu_utilities::{self},
+			wgpu_utilities::{self, create_surface},
 		},
 	},
 	transition::TransitionProgress,
@@ -14,12 +14,8 @@ use crate::{
 };
 use anyhow::Context;
 use pollster::FutureExt;
-use raw_window_handle::{
-	RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
-};
-use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
-use std::ptr::NonNull;
-use wayland_client::{Connection, Proxy};
+use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
+use wayland_client::Connection;
 use wgpaper_config::ScalingMode;
 use wgpu::{CommandEncoder, SurfaceError};
 
@@ -103,21 +99,7 @@ impl Renderer for WgpuRenderer {
 			..Default::default()
 		});
 
-		let raw_display_handle = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
-			NonNull::new(conn.backend().display_ptr() as *mut _).unwrap(),
-		));
-		let raw_window_handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(
-			NonNull::new(layer_surface.wl_surface().id().as_ptr() as *mut _).unwrap(),
-		));
-
-		let surface = unsafe {
-			instance
-				.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-					raw_display_handle,
-					raw_window_handle,
-				})
-				.context("Failed to create surface")?
-		};
+		let surface = create_surface(&instance, conn, layer_surface)?;
 
 		let gpu_selector = renderer::GpuSelector::from(gpu_selector);
 		let adapter = pollster::block_on(wgpu_selector::select_gpu(

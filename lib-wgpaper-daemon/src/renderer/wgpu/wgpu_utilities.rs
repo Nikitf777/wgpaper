@@ -1,8 +1,38 @@
+use std::ptr::NonNull;
+
+use anyhow::Context;
+use raw_window_handle::{
+	RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
+};
+use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
+use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
-	AddressMode, CommandEncoder, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
-	RenderPassDescriptor, StoreOp, TextureView,
+	AddressMode, CommandEncoder, Instance, LoadOp, Operations, RenderPass,
+	RenderPassColorAttachment, RenderPassDescriptor, StoreOp, Surface, TextureView,
 };
+
+pub fn create_surface<'a>(
+	instance: &Instance,
+	connection: &Connection,
+	layer_surface: &LayerSurface,
+) -> anyhow::Result<Surface<'a>> {
+	let raw_display_handle = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
+		NonNull::new(connection.backend().display_ptr() as *mut _).unwrap(),
+	));
+	let raw_window_handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(
+		NonNull::new(layer_surface.wl_surface().id().as_ptr() as *mut _).unwrap(),
+	));
+
+	Ok(unsafe {
+		instance
+			.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+				raw_display_handle,
+				raw_window_handle,
+			})
+			.context("Failed to create surface")?
+	})
+}
 
 pub fn get_address_mode_and_bg_color(
 	scaling_mode: &ScalingMode,
