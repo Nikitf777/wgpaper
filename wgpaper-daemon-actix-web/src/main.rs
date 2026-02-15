@@ -6,6 +6,8 @@ mod handlers;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+	env_logger::init();
+
 	let config = Arc::new(wgpaper_config::Config::new().unwrap());
 	let app_manager = Arc::new(Mutex::new(AppManager::try_new(config).unwrap()));
 
