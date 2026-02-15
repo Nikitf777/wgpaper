@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
-use wgpaper_config::Config;
-
 use crate::{
 	app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
 	utilities::random_file::RandomFileSelector,
 };
+use anyhow::Context;
+use std::sync::Arc;
+use wgpaper_config::Config;
 
 pub struct AppManager {
 	communicator: AppCommunicator,
@@ -33,10 +32,14 @@ impl AppManager {
 		self.communicator.start_transition_all(
 			self.next_image
 				.take()
-				.expect("next_image should always be populated"),
+				.context("The target image is not specified")?,
 		)?;
+		self.next_image = if let Ok(path) = &self.image_selector.pick_next() {
+			Some(ImageWrapper::from_path(path)?)
+		} else {
+			None
+		};
 
-		self.next_image = Some(ImageWrapper::from_path(&self.image_selector.pick_next()?)?);
 		Ok(())
 	}
 }
