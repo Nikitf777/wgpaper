@@ -1,10 +1,10 @@
 use crate::{
-	app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
+	LaunchOptions, app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
 	utilities::random_file::RandomFileSelector,
 };
 use anyhow::Context;
 use log::warn;
-use std::sync::Arc;
+use std::{fs, sync::Arc};
 use wgpaper_config::Config;
 
 pub struct AppManager {
@@ -20,12 +20,27 @@ impl AppManager {
 			config.image_extensions().to_vec(),
 		);
 		selector.refresh_matching_files()?;
-		let next_image = ImageWrapper::from_path(&selector.pick_next()?)?;
+
+		let initial_image = ImageWrapper::from_path(&selector.pick_next()?).ok();
+		let next_image = ImageWrapper::from_path(&selector.pick_next()?).ok();
+
+		let shader_source = if let Some(shader_path) = config.shader() {
+			fs::read_to_string(shader_path).ok()
+		} else {
+			None
+		};
+
+		let options = LaunchOptions {
+			gpu_selector: config.gpu().cloned(),
+			shader_source,
+			initial_image: initial_image,
+			scaling_mode: config.scaling_mode().clone(),
+		};
 
 		Ok(Self {
-			communicator: AppCommunicator::new(config.clone()),
+			communicator: AppCommunicator::new(options),
 			image_selector: selector,
-			next_image: Some(next_image),
+			next_image,
 		})
 	}
 
