@@ -12,7 +12,7 @@ pub trait Renderer {
 		size: (u32, u32),
 		gpu_selector: wgpaper_config::GpuSelector,
 		shader_source: Option<&str>,
-		initial_image: &ImageWrapper,
+		initial_image: Option<&ImageWrapper>,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self>
 	where

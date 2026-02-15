@@ -89,7 +89,7 @@ impl OutputStateEntry {
 		conn: &Connection,
 		gpu_selector: GpuSelector,
 		shader_source: Option<&str>,
-		initial_image: &ImageWrapper,
+		initial_image: Option<&ImageWrapper>,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<()> {
 		let renderer = wgpu_renderer::WgpuRenderer::new(
@@ -241,7 +241,7 @@ impl OutputManager {
 					conn,
 					wallpaper_state.gpu_selector.clone(),
 					wallpaper_state.shader_source.as_deref(),
-					&wallpaper_state.current_image,
+					wallpaper_state.current_image.as_ref(),
 					&wallpaper_state.scaling_mode,
 				) {
 					eprintln!("Renderer init failed: {}", e);

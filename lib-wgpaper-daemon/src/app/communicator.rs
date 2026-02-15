@@ -31,7 +31,7 @@ impl AppCommunicator {
 			} else {
 				None
 			};
-			let image = ImageWrapper::from_path(&image_path).unwrap();
+			let image = ImageWrapper::from_path(&image_path).ok();
 
 			let options = LaunchOptions {
 				gpu_selector: config.gpu().cloned(),

@@ -14,7 +14,7 @@ pub mod utilities;
 pub struct LaunchOptions {
 	pub gpu_selector: Option<wgpaper_config::GpuSelector>,
 	pub shader_source: Option<String>,
-	pub initial_image: ImageWrapper,
+	pub initial_image: Option<ImageWrapper>,
 	pub scaling_mode: ScalingMode,
 }
 

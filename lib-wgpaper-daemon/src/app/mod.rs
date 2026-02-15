@@ -79,10 +79,9 @@ impl App {
 	}
 
 	pub fn start_transition_all(&mut self, image: ImageWrapper) -> anyhow::Result<()> {
-		self.wallpaper_state.current_image = image;
-		self.output_manager
-			.start_transition(&self.qh, &self.wallpaper_state.current_image)?;
+		self.output_manager.start_transition(&self.qh, &image)?;
 		self.wallpaper_state.transition.start();
+		self.wallpaper_state.current_image = Some(image);
 		Ok(())
 	}
 }

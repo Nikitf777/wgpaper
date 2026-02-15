@@ -34,7 +34,7 @@ impl WgpuTexture {
 		device: &Device,
 		queue: &Queue,
 		size: (u32, u32),
-		rgba: &[u8],
+		rgba8: &[u8],
 		label: &str,
 		format: TextureFormat,
 	) -> anyhow::Result<Self> {
@@ -60,16 +60,16 @@ impl WgpuTexture {
 
 		let (bytes_per_row, upload_data) = match format {
 			TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {
-				(Some(4 * size.0), rgba.to_vec())
+				(Some(4 * size.0), rgba8.to_vec())
 			}
 			TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => {
-				let mut bgra = Vec::with_capacity(rgba.len());
-				for chunk in rgba.chunks_exact(4) {
+				let mut bgra = Vec::with_capacity(rgba8.len());
+				for chunk in rgba8.chunks_exact(4) {
 					bgra.extend_from_slice(&[chunk[2], chunk[1], chunk[0], chunk[3]]);
 				}
 				(Some(4 * size.0), bgra)
 			}
-			_ => (Some(4 * size.0), rgba.to_vec()),
+			_ => (Some(4 * size.0), rgba8.to_vec()),
 		};
 
 		queue.write_texture(

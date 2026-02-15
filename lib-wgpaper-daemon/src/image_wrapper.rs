@@ -17,6 +17,10 @@ impl ImageWrapper {
 		})
 	}
 
+	pub fn from_rgba8(rgba8: Vec<u8>, size: (u32, u32)) -> Self {
+		Self { rgba8, size }
+	}
+
 	pub fn as_slice(&self) -> &[u8] {
 		&self.rgba8
 	}

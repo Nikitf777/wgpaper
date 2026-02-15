@@ -91,7 +91,7 @@ impl Renderer for WgpuRenderer {
 		size: (u32, u32),
 		gpu_selector: wgpaper_config::GpuSelector,
 		shader_source: Option<&str>,
-		initial_image: &ImageWrapper,
+		initial_image: Option<&ImageWrapper>,
 		scaling_mode: &ScalingMode,
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -124,6 +124,10 @@ impl Renderer for WgpuRenderer {
 			.find(|f| f.is_srgb())
 			.unwrap_or(surface_caps.formats[0]);
 
+		let placeholder_rgba8 = vec![0u8; (size.0 * size.1 * 4) as usize]; // Fully black rectangle
+		let placeholder_image = ImageWrapper::from_rgba8(placeholder_rgba8, size);
+		let initial_image = initial_image.unwrap_or(&placeholder_image);
+
 		let initial_texture = wgpu_texture::WgpuTexture::from_image(
 			&device,
 			&queue,
@@ -131,8 +135,6 @@ impl Renderer for WgpuRenderer {
 			"to_texture",
 			surface_format,
 		)?;
-
-		let data = vec![0u8; (size.0 * size.1 * 4) as usize]; // Data for initial placeholder textures (black rectangle)
 
 		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(scaling_mode);
 
@@ -162,11 +164,10 @@ impl Renderer for WgpuRenderer {
 		per_frame_uniform_manager.update_transition_progress(TransitionProgress::finished()); // Mark that there's no ongoing transition
 
 		// Scaling Pipeline
-		let scaled_texture = wgpu_texture::WgpuTexture::from_rgba8_with_format(
+		let scaled_texture = wgpu_texture::WgpuTexture::from_image(
 			&device,
 			&queue,
-			size,
-			&data,
+			&placeholder_image,
 			"scaling_texture",
 			surface_format,
 		)
@@ -251,11 +252,10 @@ impl Renderer for WgpuRenderer {
 
 		// Animation Pipeline
 		let offscreen_textures: [wgpu_texture::WgpuTexture; 3] = core::array::from_fn(|i| {
-			wgpu_texture::WgpuTexture::from_rgba8_with_format(
+			wgpu_texture::WgpuTexture::from_image(
 				&device,
 				&queue,
-				size,
-				&data,
+				&placeholder_image,
 				&format!("offscreen_texture_{}", i),
 				surface_format,
 			)
