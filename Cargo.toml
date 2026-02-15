@@ -2,5 +2,13 @@
 resolver = "3"
 members = ["lib-wgpaper-daemon", "wgpaper-config", "wgpaper-daemon-actix-web"]
 
+[workspace.dependencies]
+anyhow = "1.0.100"
+thiserror = "2.0.18"
+log = "0.4.29"
+const_format = "0.2.35"
+calloop = "0.14.3"
+csscolorparser = { version = "0.8.2", features = ["serde"] }
+
 [profile.dev]
 opt-level = 3
