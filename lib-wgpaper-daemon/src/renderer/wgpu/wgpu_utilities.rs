@@ -2,9 +2,7 @@ use csscolorparser::Color;
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{CommandEncoder, RenderPass, RenderPassColorAttachment, TextureView};
 
-pub(super) fn get_address_mode_and_bg_color(
-	scaling_mode: &ScalingMode,
-) -> (wgpu::AddressMode, Color) {
+pub fn get_address_mode_and_bg_color(scaling_mode: &ScalingMode) -> (wgpu::AddressMode, Color) {
 	match scaling_mode {
 		ScalingMode::Fit { background } | ScalingMode::Center { background } => {
 			if background == &Background::Repeat {
@@ -26,9 +24,7 @@ pub(super) fn get_address_mode_and_bg_color(
 	}
 }
 
-pub(super) fn create_color_attachment<'tex>(
-	view: &'tex TextureView,
-) -> RenderPassColorAttachment<'tex> {
+pub fn create_color_attachment<'tex>(view: &'tex TextureView) -> RenderPassColorAttachment<'tex> {
 	RenderPassColorAttachment {
 		view: view,
 		ops: wgpu::Operations {
@@ -45,7 +41,7 @@ pub(super) fn create_color_attachment<'tex>(
 	}
 }
 
-pub(super) fn begin_render_pass<'tex>(
+pub fn begin_render_pass<'tex>(
 	encoder: &'tex mut CommandEncoder,
 	color_attachment: RenderPassColorAttachment<'tex>,
 	label: &str,

@@ -7,7 +7,7 @@ const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
 const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
 const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
 
-pub(super) fn create_scaling_fragment_shader(
+pub fn create_scaling_fragment_shader(
 	device: &wgpu::Device,
 	mode: &ScalingMode,
 ) -> wgpu::ShaderModule {
