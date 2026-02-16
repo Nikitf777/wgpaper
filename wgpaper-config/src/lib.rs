@@ -1,3 +1,4 @@
+use anyhow::Context;
 use const_format::formatcp;
 use csscolorparser::Color;
 use serde::{Deserialize, Deserializer};
@@ -146,16 +147,22 @@ impl Config {
 		Ok(serde_json::from_slice(&config_file)?)
 	}
 
-	fn get_local_config_path() -> anyhow::Result<String> {
-		let config_dir =
-			env::var("XDG_CONFIG_HOME").unwrap_or(format!("{}/.config", env::var("HOME")?));
+	fn get_local_config_path() -> anyhow::Result<PathBuf> {
+		let mut config_dir = env::var("XDG_CONFIG_HOME")
+			.map(|dir| PathBuf::from(dir))
+			.unwrap_or(
+				std::env::home_dir()
+					.context("Failed to get home directory.")
+					.map(|mut home_dir| {
+						home_dir.push(".config");
+						home_dir
+					})?,
+			);
 
-		Ok(format!(
-			"{}/{}/{}",
-			config_dir,
-			Config::APP_NAME,
-			Config::CONFIG_FILE_NAME
-		))
+		config_dir.push(Config::APP_NAME);
+		config_dir.push(Config::CONFIG_FILE_NAME);
+
+		Ok(config_dir)
 	}
 
 	/// Returns the animation shader path if configured
