@@ -20,7 +20,7 @@ impl WgpuTexture {
 		label: &str,
 		format: TextureFormat,
 	) -> anyhow::Result<Self> {
-		Self::from_rgba8_with_format(
+		Self::from_rgba8(
 			device,
 			&queue,
 			image.dimensions(),
@@ -30,7 +30,7 @@ impl WgpuTexture {
 		)
 	}
 
-	pub fn from_rgba8_with_format(
+	pub fn from_rgba8(
 		device: &Device,
 		queue: &Queue,
 		size: (u32, u32),
