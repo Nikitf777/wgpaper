@@ -1,10 +1,11 @@
-use actix_web::{App, HttpServer, web};
+use crate::server::server;
 use lib_wgpaper_daemon::app::manager::SCTKManager;
 use log::{error, info};
 use signal_hook::{consts::SIGINT, iterator::Signals};
 use std::sync::{Arc, Mutex};
 
 mod handlers;
+mod server;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -22,18 +23,7 @@ async fn main() -> std::io::Result<()> {
 		});
 	let post_server_app_manager = sctk_manager.clone();
 
-	let server = HttpServer::new(move || {
-		App::new()
-			.app_data(web::Data::from(sctk_manager.clone()))
-			.route(
-				"/transition/start",
-				web::post().to(handlers::start_transition),
-			)
-	})
-	.workers(1)
-	.bind_uds("/tmp/wgpaper.socket")?
-	.run();
-
+	let server = server(sctk_manager.clone())?;
 	let server_handle = server.handle();
 
 	let mut signals = Signals::new([SIGINT])?;
