@@ -4,7 +4,7 @@ use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use wayland_client::{Connection, globals::registry_queue_init};
 use wgpaper_config::ScalingMode;
 
-use crate::{app::App, image_wrapper::ImageWrapper};
+use crate::{app::SCTKState, image_wrapper::ImageWrapper};
 
 pub mod app;
 pub mod image_wrapper;
@@ -38,7 +38,7 @@ pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Resu
 	let qh = event_queue.handle();
 
 	info!("Initializing an event loop...");
-	let mut event_loop = EventLoop::<App>::try_new()?;
+	let mut event_loop = EventLoop::<SCTKState>::try_new()?;
 	info!("Success!");
 
 	let loop_signal = event_loop.get_signal();
@@ -66,7 +66,7 @@ pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Resu
 		.insert(loop_handle)
 		.unwrap();
 
-	let mut app = App::try_new(globals, qh, options)?;
+	let mut app = SCTKState::try_new(globals, qh, options)?;
 
 	info!("Starting the event loop...");
 	event_loop.run(None, &mut app, |_| {})?;

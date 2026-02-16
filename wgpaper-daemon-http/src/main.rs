@@ -1,5 +1,5 @@
 use actix_web::{App, HttpServer, web};
-use lib_wgpaper_daemon::app::manager::AppManager;
+use lib_wgpaper_daemon::app::manager::SCTKManager;
 use log::{error, info};
 use signal_hook::{consts::SIGINT, iterator::Signals};
 use std::sync::{Arc, Mutex};
@@ -14,17 +14,17 @@ async fn main() -> std::io::Result<()> {
 		error!("Failed to parse config file: {}", err.to_string());
 		std::process::exit(1);
 	});
-	let app_manager = AppManager::try_new(config)
+	let sctk_manager = SCTKManager::try_new(config)
 		.map(|manager| Arc::new(Mutex::new(manager)))
 		.unwrap_or_else(|err| {
 			error!("Failed to initialize the app manager: {}", err.to_string());
 			std::process::exit(1);
 		});
-	let post_server_app_manager = app_manager.clone();
+	let post_server_app_manager = sctk_manager.clone();
 
 	let server = HttpServer::new(move || {
 		App::new()
-			.app_data(web::Data::from(app_manager.clone()))
+			.app_data(web::Data::from(sctk_manager.clone()))
 			.route(
 				"/transition/start",
 				web::post().to(handlers::start_transition),

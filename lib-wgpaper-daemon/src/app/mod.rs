@@ -28,7 +28,7 @@ pub mod core;
 pub mod manager;
 pub mod output;
 
-pub struct App {
+pub struct SCTKState {
 	registry_state: RegistryState,
 	seat_state: SeatState,
 	output_state: OutputState,
@@ -36,13 +36,13 @@ pub struct App {
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
 	output_manager: OutputManager,
-	qh: QueueHandle<App>,
+	qh: QueueHandle<SCTKState>,
 	pub exit: bool,
 
 	wallpaper_state: WallpaperState,
 }
 
-impl App {
+impl SCTKState {
 	pub fn try_new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
@@ -86,7 +86,7 @@ impl App {
 	}
 }
 
-impl CompositorHandler for App {
+impl CompositorHandler for SCTKState {
 	fn frame(
 		&mut self,
 		_conn: &Connection,
@@ -135,7 +135,7 @@ impl CompositorHandler for App {
 	}
 }
 
-impl OutputHandler for App {
+impl OutputHandler for SCTKState {
 	fn output_state(&mut self) -> &mut OutputState {
 		&mut self.output_state
 	}
@@ -156,7 +156,7 @@ impl OutputHandler for App {
 	}
 }
 
-impl LayerShellHandler for App {
+impl LayerShellHandler for SCTKState {
 	fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
 		self.output_manager.handle_layer_surface_closed(layer);
 	}
@@ -174,7 +174,7 @@ impl LayerShellHandler for App {
 	}
 }
 
-impl SeatHandler for App {
+impl SeatHandler for SCTKState {
 	fn seat_state(&mut self) -> &mut SeatState {
 		&mut self.seat_state
 	}
@@ -203,20 +203,20 @@ impl SeatHandler for App {
 	}
 }
 
-impl ShmHandler for App {
+impl ShmHandler for SCTKState {
 	fn shm_state(&mut self) -> &mut Shm {
 		&mut self.shm
 	}
 }
 
-delegate_compositor!(App);
-delegate_output!(App);
-delegate_seat!(App);
-delegate_registry!(App);
-delegate_shm!(App);
-delegate_layer!(App);
+delegate_compositor!(SCTKState);
+delegate_output!(SCTKState);
+delegate_seat!(SCTKState);
+delegate_registry!(SCTKState);
+delegate_shm!(SCTKState);
+delegate_layer!(SCTKState);
 
-impl ProvidesRegistryState for App {
+impl ProvidesRegistryState for SCTKState {
 	fn registry(&mut self) -> &mut RegistryState {
 		&mut self.registry_state
 	}

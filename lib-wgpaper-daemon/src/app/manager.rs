@@ -1,6 +1,6 @@
 use crate::{
 	LaunchOptions,
-	app::communicator::AppCommunicator,
+	app::communicator::SCTKCommunicator,
 	image_wrapper::{ImageWrapper, ImageWrapperError},
 	utilities::random_file::{RandomFileError, RandomFileSelector},
 };
@@ -32,13 +32,13 @@ fn pick_next_image(
 	}
 }
 
-pub struct AppManager {
-	communicator: AppCommunicator,
+pub struct SCTKManager {
+	communicator: SCTKCommunicator,
 	image_selector: RandomFileSelector,
 	next_image: Option<ImageWrapper>,
 }
 
-impl AppManager {
+impl SCTKManager {
 	pub fn try_new(config: Config) -> anyhow::Result<Self> {
 		let mut selector = RandomFileSelector::new(
 			config.wallpaper_directories().to_vec(),
@@ -71,7 +71,7 @@ impl AppManager {
 		};
 
 		Ok(Self {
-			communicator: AppCommunicator::new(options),
+			communicator: SCTKCommunicator::new(options),
 			image_selector: selector,
 			next_image,
 		})
