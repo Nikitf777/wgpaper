@@ -1,5 +1,5 @@
 use calloop::{EventLoop, channel::Channel};
-use log::info;
+use log::{info, warn};
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use wayland_client::{Connection, globals::registry_queue_init};
 use wgpaper_config::ScalingMode;
@@ -23,6 +23,7 @@ pub struct PerOutputLaunchOptions {}
 
 pub enum Commands {
 	StartTransitionAll { image: ImageWrapper },
+	Stop,
 }
 
 pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Result<()> {
@@ -40,15 +41,24 @@ pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Resu
 	let mut event_loop = EventLoop::<App>::try_new()?;
 	info!("Success!");
 
+	let loop_signal = event_loop.get_signal();
+
 	let loop_handle = event_loop.handle();
 	loop_handle
-		.insert_source(channel, |e, _, app| match e {
+		.insert_source(channel, move |e, _, app| match e {
 			calloop::channel::Event::Msg(command) => match command {
 				Commands::StartTransitionAll { image } => {
 					app.start_transition_all(image);
 				}
+				Commands::Stop => {
+					info!("Stop command received, terminating event loop");
+					loop_signal.stop();
+				}
 			},
-			calloop::channel::Event::Closed => todo!(),
+			calloop::channel::Event::Closed => {
+				warn!("Command channel closed unexpectedly");
+				loop_signal.stop();
+			}
 		})
 		.unwrap();
 

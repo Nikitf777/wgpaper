@@ -9,7 +9,9 @@ calloop = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 
 lib-wgpaper-daemon = { path = "../lib-wgpaper-daemon" }
 wgpaper-config = { path = "../wgpaper-config" }
 actix-web = "4.12.1"
+signal-hook = "0.4.3"

@@ -1,6 +1,7 @@
 use actix_web::{App, HttpServer, web};
 use lib_wgpaper_daemon::app::manager::AppManager;
-use log::error;
+use log::{error, info};
+use signal_hook::{consts::SIGINT, iterator::Signals};
 use std::sync::{Arc, Mutex};
 
 mod handlers;
@@ -19,8 +20,9 @@ async fn main() -> std::io::Result<()> {
 			error!("Failed to initialize the app manager: {}", err.to_string());
 			std::process::exit(1);
 		});
+	let post_server_app_manager = app_manager.clone();
 
-	HttpServer::new(move || {
+	let server = HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::from(app_manager.clone()))
 			.route(
@@ -30,6 +32,28 @@ async fn main() -> std::io::Result<()> {
 	})
 	.workers(1)
 	.bind_uds("/tmp/wgpaper.socket")?
-	.run()
-	.await
+	.run();
+
+	let server_handle = server.handle();
+
+	let mut signals = Signals::new([SIGINT])?;
+	tokio::spawn(async move {
+		for _ in signals.forever() {
+			info!("Ctrl+C received. Stopping HTTP server gracefully");
+			server_handle.stop(true).await;
+		}
+	});
+
+	if let Err(e) = server.await {
+		error!("HTTP server error during runtime: {}", e);
+	}
+
+	info!("HTTP server stopped. Shutting down SCTK application");
+
+	let mut manager = post_server_app_manager.lock().expect("Poisoned mutex");
+	let _ = manager.shutdown();
+
+	info!("Graceful shutdown complete. Exiting.");
+
+	Ok(())
 }

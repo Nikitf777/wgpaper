@@ -77,6 +77,10 @@ impl AppManager {
 		})
 	}
 
+	pub fn shutdown(&mut self) -> anyhow::Result<()> {
+		self.communicator.shutdown()
+	}
+
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
 		match self
 			.next_image
