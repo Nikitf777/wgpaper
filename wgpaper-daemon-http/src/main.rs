@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
 				web::post().to(handlers::start_transition),
 			)
 	})
-	.workers(2)
+	.workers(1)
 	.bind_uds("/tmp/wgpaper.socket")?
 	.run()
 	.await
