@@ -12,13 +12,13 @@ async fn main() -> std::io::Result<()> {
 	env_logger::init();
 
 	let config = wgpaper_config::Config::try_new().unwrap_or_else(|err| {
-		error!("Failed to parse config file: {}", err.to_string());
+		error!("Failed to parse config file: {}.", err.to_string());
 		std::process::exit(1);
 	});
 	let sctk_manager = SCTKManager::try_new(config)
 		.map(|manager| Arc::new(Mutex::new(manager)))
 		.unwrap_or_else(|err| {
-			error!("Failed to initialize the app manager: {}", err.to_string());
+			error!("Failed to initialize the app manager: {}.", err.to_string());
 			std::process::exit(1);
 		});
 	let post_server_app_manager = sctk_manager.clone();
@@ -29,18 +29,18 @@ async fn main() -> std::io::Result<()> {
 	let mut signals = Signals::new([SIGINT])?;
 	tokio::spawn(async move {
 		for _ in signals.forever() {
-			info!("Ctrl+C received. Stopping HTTP server gracefully");
+			info!("Ctrl+C received. Stopping HTTP server gracefully.");
 			server_handle.stop(true).await;
 		}
 	});
 
 	if let Err(e) = server.await {
-		error!("HTTP server error during runtime: {}", e);
+		error!("HTTP server error during runtime: {}.", e);
 	}
 
-	info!("HTTP server stopped. Shutting down SCTK application");
+	info!("HTTP server stopped. Shutting down SCTK application.");
 
-	let mut manager = post_server_app_manager.lock().expect("Poisoned mutex");
+	let mut manager = post_server_app_manager.lock().expect("Poisoned mutex.");
 	let _ = manager.shutdown();
 
 	info!("Graceful shutdown complete. Exiting.");

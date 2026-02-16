@@ -29,17 +29,17 @@ pub enum Commands {
 pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Result<()> {
 	info!("Connecting to a Wayland server...");
 	let conn = Connection::connect_to_env()?;
-	info!("Success!");
+	info!("Connected to the Wayland server.");
 
 	info!("Initializing an event queue...");
 	let (globals, event_queue) = registry_queue_init(&conn)?;
-	info!("Success!");
+	info!("Initialized the event queue.");
 
 	let qh = event_queue.handle();
 
 	info!("Initializing an event loop...");
 	let mut event_loop = EventLoop::<SCTKState>::try_new()?;
-	info!("Success!");
+	info!("Initialized the event loop.");
 
 	let loop_signal = event_loop.get_signal();
 
@@ -51,12 +51,12 @@ pub fn start(channel: Channel<Commands>, options: LaunchOptions) -> anyhow::Resu
 					app.start_transition_all(image);
 				}
 				Commands::Stop => {
-					info!("Stop command received, terminating event loop");
+					info!("Stop command received, terminating event loop.");
 					loop_signal.stop();
 				}
 			},
 			calloop::channel::Event::Closed => {
-				warn!("Command channel closed unexpectedly");
+				warn!("Command channel closed unexpectedly.");
 				loop_signal.stop();
 			}
 		})

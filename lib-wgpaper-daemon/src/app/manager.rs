@@ -12,7 +12,7 @@ use wgpaper_config::Config;
 
 #[derive(Debug, Error)]
 pub enum AppManagerError {
-	#[error("Failed to pick the next file.")]
+	#[error("Failed to pick the next file")]
 	RandomFileError { error: RandomFileError },
 
 	#[error("Failed to decode an image: {error}")]
@@ -48,12 +48,12 @@ impl SCTKManager {
 
 		let initial_image = pick_next_image(&mut selector)
 			.inspect_err(|err| {
-				warn!("Failed to pick the initial image: {}", err.to_string());
+				warn!("Failed to pick the initial image: {}.", err.to_string());
 			})
 			.ok();
 		let next_image = pick_next_image(&mut selector)
 			.inspect_err(|err| {
-				warn!("Failed to pick the next image: {}", err.to_string());
+				warn!("Failed to pick the next image: {}.", err.to_string());
 			})
 			.ok();
 
@@ -97,7 +97,7 @@ impl SCTKManager {
 			match ImageWrapper::from_path(path) {
 				Ok(image) => Some(image),
 				Err(err) => {
-					warn!("Failed to pick the next image: {}", err.to_string());
+					warn!("Failed to pick the next image: {}.", err.to_string());
 					None
 				}
 			}

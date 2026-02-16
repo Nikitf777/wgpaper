@@ -28,10 +28,10 @@ impl SCTKCommunicator {
 			info!("Waiting for SCTK thread to exit...");
 			thread
 				.join()
-				.map_err(|e| anyhow::anyhow!("SCTK thread panicked: {:?}", e))?;
-			info!("SCTK thread exited cleanly");
+				.map_err(|e| anyhow::anyhow!("SCTK thread panicked: {:?}.", e))?;
+			info!("SCTK thread exited cleanly.");
 		} else {
-			debug!("SCTK thread was already stopped");
+			debug!("SCTK thread was already stopped.");
 		}
 		Ok(())
 	}
