@@ -3235,7 +3235,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wgpaper-daemon-actix-web"
+name = "wgpaper-daemon-http"
 version = "0.1.0"
 dependencies = [
  "actix-web",

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["lib-wgpaper-daemon", "wgpaper-config", "wgpaper-daemon-actix-web"]
+members = ["lib-wgpaper-daemon", "wgpaper-config", "wgpaper-daemon-http"]
 
 [workspace.dependencies]
 anyhow = "1.0.100"

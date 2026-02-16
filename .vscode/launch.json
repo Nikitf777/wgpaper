@@ -14,29 +14,29 @@
             }
         },
         {
-            "name": "Debug executable 'wgpaper-daemon-actix-web'",
+            "name": "Debug executable 'wgpaper-daemon-http'",
             "type": "lldb",
             "request": "launch",
             "console": "internalConsole",
             "cargo": {
                 "args": [
                     "run",
-                    "--bin=wgpaper-daemon-actix-web",
-                    "--package=wgpaper-daemon-actix-web"
+                    "--bin=wgpaper-daemon-http",
+                    "--package=wgpaper-daemon-http"
                 ]
             },
             "args": []
         },
         {
-            "name": "Debug unit tests in executable 'wgpaper-daemon-actix-web'",
+            "name": "Debug unit tests in executable 'wgpaper-daemon-http'",
             "type": "lldb",
             "request": "launch",
             "console": "internalConsole",
             "cargo": {
                 "args": [
                     "test",
-                    "--bin=wgpaper-daemon-actix-web",
-                    "--package=wgpaper-daemon-actix-web"
+                    "--bin=wgpaper-daemon-http",
+                    "--package=wgpaper-daemon-http"
                 ]
             }
         }
