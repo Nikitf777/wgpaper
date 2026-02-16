@@ -136,7 +136,7 @@ impl Config {
 	pub const GLOBAL_CONFIG_FILE_PATH: &str =
 		formatcp!("/etc/{}/{}", Config::APP_NAME, Config::CONFIG_FILE_NAME);
 
-	pub fn new() -> anyhow::Result<Self> {
+	pub fn try_new() -> anyhow::Result<Self> {
 		let local_config_path = Self::get_local_config_path()?;
 		let config_file = if Path::new(&local_config_path).exists() {
 			fs::read(local_config_path)?

@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::Context;
 use log::warn;
-use std::{fs, sync::Arc};
+use std::fs;
 use thiserror::Error;
 use wgpaper_config::Config;
 
@@ -39,7 +39,7 @@ pub struct AppManager {
 }
 
 impl AppManager {
-	pub fn try_new(config: Arc<Config>) -> anyhow::Result<Self> {
+	pub fn try_new(config: Config) -> anyhow::Result<Self> {
 		let mut selector = RandomFileSelector::new(
 			config.wallpaper_directories().to_vec(),
 			config.image_extensions().to_vec(),

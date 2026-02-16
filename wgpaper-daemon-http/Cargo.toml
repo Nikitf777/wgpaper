@@ -6,8 +6,9 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 calloop = { workspace = true }
-thiserror = { workspace = true }
 env_logger = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
 
 lib-wgpaper-daemon = { path = "../lib-wgpaper-daemon" }
 wgpaper-config = { path = "../wgpaper-config" }

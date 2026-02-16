@@ -3243,6 +3243,7 @@ dependencies = [
  "calloop",
  "env_logger",
  "lib-wgpaper-daemon",
+ "log",
  "thiserror",
  "wgpaper-config",
 ]
