@@ -1,11 +1,36 @@
 use crate::{
-	LaunchOptions, app::communicator::AppCommunicator, image_wrapper::ImageWrapper,
-	utilities::random_file::RandomFileSelector,
+	LaunchOptions,
+	app::communicator::AppCommunicator,
+	image_wrapper::{ImageWrapper, ImageWrapperError},
+	utilities::random_file::{RandomFileError, RandomFileSelector},
 };
 use anyhow::Context;
 use log::warn;
 use std::{fs, sync::Arc};
+use thiserror::Error;
 use wgpaper_config::Config;
+
+#[derive(Debug, Error)]
+pub enum AppManagerError {
+	#[error("Failed to pick the next file.")]
+	RandomFileError { error: RandomFileError },
+
+	#[error("Failed to decode an image: {error}")]
+	ImageError { error: ImageWrapperError },
+}
+
+pub type AppManagerResult = Result<(), AppManagerError>;
+
+fn pick_next_image(
+	file_selector: &mut RandomFileSelector,
+) -> Result<ImageWrapper, AppManagerError> {
+	match file_selector.pick_next() {
+		Ok(path) => {
+			ImageWrapper::from_path(&path).map_err(|err| AppManagerError::ImageError { error: err })
+		}
+		Err(err) => Err(AppManagerError::RandomFileError { error: err }),
+	}
+}
 
 pub struct AppManager {
 	communicator: AppCommunicator,
@@ -21,8 +46,16 @@ impl AppManager {
 		);
 		selector.refresh_matching_files()?;
 
-		let initial_image = ImageWrapper::from_path(&selector.pick_next()?).ok();
-		let next_image = ImageWrapper::from_path(&selector.pick_next()?).ok();
+		let initial_image = pick_next_image(&mut selector)
+			.inspect_err(|err| {
+				warn!("Failed to pick the initial image: {}", err.to_string());
+			})
+			.ok();
+		let next_image = pick_next_image(&mut selector)
+			.inspect_err(|err| {
+				warn!("Failed to pick the next image: {}", err.to_string());
+			})
+			.ok();
 
 		let shader_source = if let Some(shader_path) = config.shader() {
 			fs::read_to_string(shader_path).ok()
