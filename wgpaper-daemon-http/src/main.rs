@@ -1,11 +1,12 @@
 use crate::server::server;
 use lib_wgpaper_daemon::app::manager::SCTKManager;
-use log::{error, info};
+use log::{error, info, warn};
 use signal_hook::{
 	consts::{SIGINT, SIGTERM},
 	iterator::Signals,
 };
 use std::sync::{Arc, Mutex};
+use wgpaper_config::Config;
 
 mod handlers;
 mod server;
@@ -14,10 +15,15 @@ mod server;
 async fn main() -> std::io::Result<()> {
 	env_logger::init();
 
-	let config = wgpaper_config::Config::try_new().unwrap_or_else(|err| {
-		error!("Failed to parse config file: {}.", err.to_string());
-		std::process::exit(1);
-	});
+	let config = Config::try_new()
+		.inspect_err(|err| {
+			warn!(
+				"Failed to parse config file: {}. Falling back to defaults.",
+				err.to_string()
+			);
+		})
+		.unwrap_or_default();
+
 	let sctk_manager = SCTKManager::try_new(config)
 		.map(|manager| Arc::new(Mutex::new(manager)))
 		.unwrap_or_else(|err| {

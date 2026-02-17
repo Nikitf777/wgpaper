@@ -40,6 +40,14 @@ pub enum ListenSocket {
 	UDS { path: PathBuf },
 }
 
+impl Default for ListenSocket {
+	fn default() -> Self {
+		Self::UDS {
+			path: "/tmp/wgpaper.socket".into(),
+		}
+	}
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct GpuSelector {
 	pub index: Option<usize>,
@@ -127,7 +135,9 @@ pub struct Config {
 
 	#[serde(default)]
 	scaling_mode: ScalingMode,
-	listen_socket: Option<ListenSocket>,
+
+	#[serde(default)]
+	listen_socket: ListenSocket,
 	gpu: Option<GpuSelector>,
 }
 
@@ -191,12 +201,26 @@ impl Config {
 	}
 
 	/// Returns the listen socket configuration if set
-	pub fn listen_socket(&self) -> Option<&ListenSocket> {
-		self.listen_socket.as_ref()
+	pub fn listen_socket(&self) -> &ListenSocket {
+		&self.listen_socket
 	}
 
 	/// Returns the GPU configuration if set
 	pub fn gpu(&self) -> Option<&GpuSelector> {
 		self.gpu.as_ref()
+	}
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Self {
+			shader: None,
+			initial_wallpaper: None,
+			wallpaper_directories: wallpaper_directories_default(),
+			image_extensions: image_extensions_default(),
+			scaling_mode: ScalingMode::default(),
+			listen_socket: ListenSocket::default(),
+			gpu: None,
+		}
 	}
 }
