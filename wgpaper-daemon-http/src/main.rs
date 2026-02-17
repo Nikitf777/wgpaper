@@ -26,7 +26,14 @@ async fn main() -> std::io::Result<()> {
 		});
 	let post_server_sctk_manager = sctk_manager.clone();
 
-	let server = server(sctk_manager.clone())?;
+	let server = server(sctk_manager.clone()).unwrap_or_else(|err| {
+		error!(
+			"Failed to start the HTTP server: {}. Trying to stop the SCTK thread...",
+			err.to_string()
+		);
+		shutdown_sctk_manager(&post_server_sctk_manager);
+		std::process::exit(1);
+	});
 	let server_handle = server.handle();
 
 	let mut signals = Signals::new([SIGINT, SIGTERM])?;
@@ -48,7 +55,14 @@ async fn main() -> std::io::Result<()> {
 
 	info!("HTTP server stopped. Shutting down SCTK manager...");
 
-	let mut manager = post_server_sctk_manager.lock().unwrap_or_else(|err| {
+	shutdown_sctk_manager(&post_server_sctk_manager);
+	info!("Graceful shutdown complete. Exiting.");
+
+	Ok(())
+}
+
+fn shutdown_sctk_manager(sctk_manager: &Arc<Mutex<SCTKManager>>) {
+	let mut manager = sctk_manager.lock().unwrap_or_else(|err| {
 		error!("Failed to sync SCTK manager: {}.", err.to_string());
 		std::process::exit(1);
 	});
@@ -59,8 +73,5 @@ async fn main() -> std::io::Result<()> {
 		);
 		std::process::exit(1);
 	});
-
-	info!("Graceful shutdown complete. Exiting.");
-
-	Ok(())
+	info!("SCTK thread stopped.");
 }
