@@ -18,14 +18,17 @@ use wgpaper_config::{GpuSelector, ScalingMode};
 use crate::{
 	app::{SctkState, core::WallpaperState},
 	image_wrapper::ImageWrapper,
-	renderer::{Renderer, wgpu::wgpu_renderer},
+	renderer::{
+		Renderer,
+		wgpu::wgpu_renderer::{self, WgpuRenderer},
+	},
 	transition::TransitionProgress,
 };
 
 pub struct OutputStateEntry {
 	output: WlOutput,
 	layer: LayerSurface,
-	renderer: Option<Box<dyn Renderer>>,
+	renderer: Option<WgpuRenderer>,
 	size: (u32, u32),
 }
 
@@ -101,7 +104,7 @@ impl OutputStateEntry {
 			initial_image,
 			scaling_mode,
 		)?;
-		self.renderer = Some(Box::new(renderer));
+		self.renderer = Some(renderer);
 		Ok(())
 	}
 
