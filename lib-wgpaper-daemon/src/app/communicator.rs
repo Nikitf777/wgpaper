@@ -3,12 +3,12 @@ use calloop::channel::{Sender, channel};
 use log::{debug, info};
 use std::thread::{self, JoinHandle};
 
-pub struct SCTKCommunicator {
+pub struct SctkCommunicator {
 	sender: Sender<Commands>,
 	sctk_thread: Option<JoinHandle<()>>,
 }
 
-impl SCTKCommunicator {
+impl SctkCommunicator {
 	pub fn new(options: LaunchOptions) -> Self {
 		let (sender, channel) = channel::<Commands>();
 		let handle = thread::spawn(move || {
@@ -42,7 +42,7 @@ impl SCTKCommunicator {
 	}
 }
 
-impl Drop for SCTKCommunicator {
+impl Drop for SctkCommunicator {
 	fn drop(&mut self) {
 		let _ = self.shutdown();
 	}

@@ -28,7 +28,7 @@ pub mod core;
 pub mod manager;
 pub mod output;
 
-pub struct SCTKState {
+pub struct SctkState {
 	registry_state: RegistryState,
 	seat_state: SeatState,
 	output_state: OutputState,
@@ -36,13 +36,13 @@ pub struct SCTKState {
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
 	output_manager: OutputManager,
-	qh: QueueHandle<SCTKState>,
+	qh: QueueHandle<SctkState>,
 	pub exit: bool,
 
 	wallpaper_state: WallpaperState,
 }
 
-impl SCTKState {
+impl SctkState {
 	pub fn try_new(
 		globals: GlobalList,
 		qh: QueueHandle<Self>,
@@ -86,7 +86,7 @@ impl SCTKState {
 	}
 }
 
-impl CompositorHandler for SCTKState {
+impl CompositorHandler for SctkState {
 	fn frame(
 		&mut self,
 		_conn: &Connection,
@@ -135,7 +135,7 @@ impl CompositorHandler for SCTKState {
 	}
 }
 
-impl OutputHandler for SCTKState {
+impl OutputHandler for SctkState {
 	fn output_state(&mut self) -> &mut OutputState {
 		&mut self.output_state
 	}
@@ -156,7 +156,7 @@ impl OutputHandler for SCTKState {
 	}
 }
 
-impl LayerShellHandler for SCTKState {
+impl LayerShellHandler for SctkState {
 	fn closed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, layer: &LayerSurface) {
 		self.output_manager.handle_layer_surface_closed(layer);
 	}
@@ -174,7 +174,7 @@ impl LayerShellHandler for SCTKState {
 	}
 }
 
-impl SeatHandler for SCTKState {
+impl SeatHandler for SctkState {
 	fn seat_state(&mut self) -> &mut SeatState {
 		&mut self.seat_state
 	}
@@ -203,20 +203,20 @@ impl SeatHandler for SCTKState {
 	}
 }
 
-impl ShmHandler for SCTKState {
+impl ShmHandler for SctkState {
 	fn shm_state(&mut self) -> &mut Shm {
 		&mut self.shm
 	}
 }
 
-delegate_compositor!(SCTKState);
-delegate_output!(SCTKState);
-delegate_seat!(SCTKState);
-delegate_registry!(SCTKState);
-delegate_shm!(SCTKState);
-delegate_layer!(SCTKState);
+delegate_compositor!(SctkState);
+delegate_output!(SctkState);
+delegate_seat!(SctkState);
+delegate_registry!(SctkState);
+delegate_shm!(SctkState);
+delegate_layer!(SctkState);
 
-impl ProvidesRegistryState for SCTKState {
+impl ProvidesRegistryState for SctkState {
 	fn registry(&mut self) -> &mut RegistryState {
 		&mut self.registry_state
 	}

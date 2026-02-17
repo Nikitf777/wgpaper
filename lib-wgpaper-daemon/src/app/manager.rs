@@ -1,6 +1,6 @@
 use crate::{
 	LaunchOptions,
-	app::communicator::SCTKCommunicator,
+	app::communicator::SctkCommunicator,
 	image_wrapper::{ImageWrapper, ImageWrapperError},
 	utilities::random_file::{RandomFileError, RandomFileSelector},
 };
@@ -11,7 +11,7 @@ use thiserror::Error;
 use wgpaper_config::Config;
 
 #[derive(Debug, Error)]
-pub enum AppManagerError {
+pub enum SctkManagerError {
 	#[error("Failed to pick the next file")]
 	RandomFileError { error: RandomFileError },
 
@@ -19,26 +19,25 @@ pub enum AppManagerError {
 	ImageError { error: ImageWrapperError },
 }
 
-pub type AppManagerResult = Result<(), AppManagerError>;
+pub type SctkManagerResult = Result<(), SctkManagerError>;
 
 fn pick_next_image(
 	file_selector: &mut RandomFileSelector,
-) -> Result<ImageWrapper, AppManagerError> {
+) -> Result<ImageWrapper, SctkManagerError> {
 	match file_selector.pick_next() {
-		Ok(path) => {
-			ImageWrapper::from_path(&path).map_err(|err| AppManagerError::ImageError { error: err })
-		}
-		Err(err) => Err(AppManagerError::RandomFileError { error: err }),
+		Ok(path) => ImageWrapper::from_path(&path)
+			.map_err(|err| SctkManagerError::ImageError { error: err }),
+		Err(err) => Err(SctkManagerError::RandomFileError { error: err }),
 	}
 }
 
-pub struct SCTKManager {
-	communicator: SCTKCommunicator,
+pub struct SctkManager {
+	communicator: SctkCommunicator,
 	image_selector: RandomFileSelector,
 	next_image: Option<ImageWrapper>,
 }
 
-impl SCTKManager {
+impl SctkManager {
 	pub fn try_new(config: Config) -> anyhow::Result<Self> {
 		let mut selector = RandomFileSelector::new(
 			config.wallpaper_directories().to_vec(),
@@ -71,7 +70,7 @@ impl SCTKManager {
 		};
 
 		Ok(Self {
-			communicator: SCTKCommunicator::new(options),
+			communicator: SctkCommunicator::new(options),
 			image_selector: selector,
 			next_image,
 		})

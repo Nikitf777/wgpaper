@@ -16,7 +16,7 @@ use wayland_client::{
 use wgpaper_config::{GpuSelector, ScalingMode};
 
 use crate::{
-	app::{SCTKState, core::WallpaperState},
+	app::{SctkState, core::WallpaperState},
 	image_wrapper::ImageWrapper,
 	renderer::{Renderer, wgpu::wgpu_renderer},
 	transition::TransitionProgress,
@@ -66,7 +66,7 @@ impl OutputStateEntry {
 		self.layer.wl_surface().commit();
 	}
 
-	pub fn frame(&self, qh: &QueueHandle<SCTKState>) {
+	pub fn frame(&self, qh: &QueueHandle<SctkState>) {
 		self.layer
 			.wl_surface()
 			.frame(qh, self.layer.wl_surface().clone());
@@ -146,7 +146,7 @@ pub struct OutputManager {
 }
 
 impl OutputManager {
-	pub fn queue_render_all(&mut self, qh: &QueueHandle<SCTKState>) {
+	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
 		for (_, output) in self.outputs.iter_mut() {
 			output.frame(qh);
 			output.commit();
@@ -155,7 +155,7 @@ impl OutputManager {
 
 	pub fn start_transition(
 		&mut self,
-		qh: &QueueHandle<SCTKState>,
+		qh: &QueueHandle<SctkState>,
 		image: &ImageWrapper,
 	) -> anyhow::Result<()> {
 		for (surface, output) in self.outputs.iter_mut() {
@@ -169,7 +169,7 @@ impl OutputManager {
 
 	pub fn frame(
 		&mut self,
-		qh: &QueueHandle<SCTKState>,
+		qh: &QueueHandle<SctkState>,
 		surface: &WlSurface,
 		progress: TransitionProgress,
 	) {
@@ -187,7 +187,7 @@ impl OutputManager {
 
 	pub fn handle_new_output(
 		&mut self,
-		qh: &QueueHandle<SCTKState>,
+		qh: &QueueHandle<SctkState>,
 		compositor_state: &CompositorState,
 		layer_shell: &LayerShell,
 		output: &WlOutput,
@@ -228,7 +228,7 @@ impl OutputManager {
 	pub fn handle_configure(
 		&mut self,
 		conn: &Connection,
-		qh: &QueueHandle<SCTKState>,
+		qh: &QueueHandle<SctkState>,
 		layer: &LayerSurface,
 		configure: &LayerSurfaceConfigure,
 		wallpaper_state: &WallpaperState,

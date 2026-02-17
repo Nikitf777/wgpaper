@@ -1,10 +1,10 @@
 use actix_web::{App, HttpServer, dev::Server, web};
-use lib_wgpaper_daemon::app::manager::SCTKManager;
+use lib_wgpaper_daemon::app::manager::SctkManager;
 use std::sync::{Arc, Mutex};
 
 use crate::handlers;
 
-pub fn server(sctk_manager: Arc<Mutex<SCTKManager>>) -> std::io::Result<Server> {
+pub fn server(sctk_manager: Arc<Mutex<SctkManager>>) -> std::io::Result<Server> {
 	Ok(HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::from(sctk_manager.clone()))

@@ -1,5 +1,5 @@
 use crate::server::server;
-use lib_wgpaper_daemon::app::manager::SCTKManager;
+use lib_wgpaper_daemon::app::manager::SctkManager;
 use log::{error, info, warn};
 use signal_hook::{
 	consts::{SIGINT, SIGTERM},
@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
 		})
 		.unwrap_or_default();
 
-	let sctk_manager = SCTKManager::try_new(config)
+	let sctk_manager = SctkManager::try_new(config)
 		.map(|manager| Arc::new(Mutex::new(manager)))
 		.unwrap_or_else(|err| {
 			error!("Failed to initialize the app manager: {}.", err.to_string());
@@ -67,7 +67,7 @@ async fn main() -> std::io::Result<()> {
 	Ok(())
 }
 
-fn shutdown_sctk_manager(sctk_manager: &Arc<Mutex<SCTKManager>>) {
+fn shutdown_sctk_manager(sctk_manager: &Arc<Mutex<SctkManager>>) {
 	let mut manager = sctk_manager.lock().unwrap_or_else(|err| {
 		error!("Failed to sync SCTK manager: {}.", err.to_string());
 		std::process::exit(1);

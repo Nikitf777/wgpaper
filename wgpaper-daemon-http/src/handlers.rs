@@ -4,9 +4,9 @@ use actix_web::{
 	HttpResponse, Responder,
 	web::{self},
 };
-use lib_wgpaper_daemon::app::manager::SCTKManager;
+use lib_wgpaper_daemon::app::manager::SctkManager;
 
-pub async fn start_transition(app_manager: web::Data<Mutex<SCTKManager>>) -> impl Responder {
+pub async fn start_transition(app_manager: web::Data<Mutex<SctkManager>>) -> impl Responder {
 	app_manager
 		.lock()
 		.unwrap()
