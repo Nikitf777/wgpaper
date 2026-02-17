@@ -2,6 +2,7 @@ use std::{collections::HashMap, num::NonZeroU32};
 
 use smithay_client_toolkit::{
 	compositor::CompositorState,
+	output::OutputState,
 	shell::{
 		WaylandSurface,
 		wlr_layer::{
@@ -143,12 +144,23 @@ impl OutputStateEntry {
 	}
 }
 
-#[derive(Default)]
 pub struct OutputManager {
 	outputs: HashMap<WlSurface, OutputStateEntry>,
+	output_state: OutputState,
 }
 
 impl OutputManager {
+	pub fn new(output_state: OutputState) -> Self {
+		Self {
+			outputs: HashMap::default(),
+			output_state,
+		}
+	}
+
+	pub fn output_state(&mut self) -> &mut OutputState {
+		&mut self.output_state
+	}
+
 	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
 		for (_, output) in self.outputs.iter_mut() {
 			output.frame(qh);

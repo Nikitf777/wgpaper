@@ -31,7 +31,6 @@ pub mod output;
 pub struct SctkState {
 	registry_state: RegistryState,
 	seat_state: SeatState,
-	output_state: OutputState,
 	shm: Shm,
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
@@ -60,11 +59,10 @@ impl SctkState {
 		Ok(Self {
 			registry_state,
 			seat_state,
-			output_state,
 			shm,
 			compositor_state,
 			layer_shell,
-			output_manager: OutputManager::default(),
+			output_manager: OutputManager::new(output_state),
 			qh,
 			exit: false,
 
@@ -137,7 +135,7 @@ impl CompositorHandler for SctkState {
 
 impl OutputHandler for SctkState {
 	fn output_state(&mut self) -> &mut OutputState {
-		&mut self.output_state
+		self.output_manager.output_state()
 	}
 
 	fn new_output(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {
