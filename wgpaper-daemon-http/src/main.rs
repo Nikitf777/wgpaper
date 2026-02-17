@@ -46,7 +46,7 @@ async fn main() -> std::io::Result<()> {
 		error!("HTTP server error during runtime: {}.", e);
 	}
 
-	info!("HTTP server stopped. Shutting down SCTK application...");
+	info!("HTTP server stopped. Shutting down SCTK manager...");
 
 	let mut manager = post_server_sctk_manager.lock().unwrap_or_else(|err| {
 		error!("Failed to sync SCTK manager: {}.", err.to_string());
