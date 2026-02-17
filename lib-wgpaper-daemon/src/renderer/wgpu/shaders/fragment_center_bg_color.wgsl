@@ -8,7 +8,7 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
 }
 
-struct PerFrameDataUniforms {
+struct PerFrameDataUniform {
     screen_size: vec2<f32>,
     texture_size: vec2<f32>,
     screen_aspect: f32,
@@ -18,7 +18,7 @@ struct PerFrameDataUniforms {
     bg_color: vec4<f32>
 };
 @group(1) @binding(0)
-var<uniform> per_frame: PerFrameDataUniforms;
+var<uniform> per_frame: PerFrameDataUniform;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
