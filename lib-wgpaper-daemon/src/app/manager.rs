@@ -31,6 +31,14 @@ fn pick_next_image(
 	}
 }
 
+fn pick_next_image_option(file_selector: &mut RandomFileSelector) -> Option<ImageWrapper> {
+	pick_next_image(file_selector)
+		.inspect_err(|err| {
+			warn!("Failed to pick the initial image: {}.", err.to_string());
+		})
+		.ok()
+}
+
 pub struct SctkManager {
 	communicator: SctkCommunicator,
 	image_selector: RandomFileSelector,
@@ -39,22 +47,14 @@ pub struct SctkManager {
 
 impl SctkManager {
 	pub fn try_new(config: Config) -> anyhow::Result<Self> {
-		let mut selector = RandomFileSelector::new(
+		let mut image_selector = RandomFileSelector::new(
 			config.wallpaper_directories().to_vec(),
 			config.image_extensions().to_vec(),
 		);
-		selector.refresh_matching_files()?;
+		image_selector.refresh_matching_files()?;
 
-		let initial_image = pick_next_image(&mut selector)
-			.inspect_err(|err| {
-				warn!("Failed to pick the initial image: {}.", err.to_string());
-			})
-			.ok();
-		let next_image = pick_next_image(&mut selector)
-			.inspect_err(|err| {
-				warn!("Failed to pick the next image: {}.", err.to_string());
-			})
-			.ok();
+		let initial_image = pick_next_image_option(&mut image_selector);
+		let next_image = pick_next_image_option(&mut image_selector);
 
 		let shader_source = if let Some(shader_path) = config.shader() {
 			fs::read_to_string(shader_path).ok()
@@ -71,7 +71,7 @@ impl SctkManager {
 
 		Ok(Self {
 			communicator: SctkCommunicator::new(options),
-			image_selector: selector,
+			image_selector,
 			next_image,
 		})
 	}
@@ -92,17 +92,7 @@ impl SctkManager {
 			}
 		}
 
-		self.next_image = if let Ok(path) = &self.image_selector.pick_next() {
-			match ImageWrapper::from_path(path) {
-				Ok(image) => Some(image),
-				Err(err) => {
-					warn!("Failed to pick the next image: {}.", err.to_string());
-					None
-				}
-			}
-		} else {
-			None
-		};
+		self.next_image = pick_next_image_option(&mut self.image_selector);
 
 		Ok(())
 	}
