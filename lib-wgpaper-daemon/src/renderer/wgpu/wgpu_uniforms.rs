@@ -6,30 +6,35 @@ use crate::transition::TransitionProgress;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct PerFrameDataUniform {
+	global_screen_size: [f32; 2],
 	screen_size: [f32; 2],
 	texture_size: [f32; 2],
+	global_screen_aspect: f32,
 	screen_aspect: f32,
 	texture_aspect: f32,
 	progress: [f32; 2],
 	bg_color: [f32; 4],
-	_padding: [u8; 224],
+	_padding: [u8; 212],
 }
 
 impl PerFrameDataUniform {
 	fn new(
+		global_screen_size: (f32, f32),
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
 		bg_color: Color,
 	) -> Self {
 		Self {
+			global_screen_size: unsafe { std::mem::transmute(global_screen_size) },
 			screen_size: unsafe { std::mem::transmute(screen_size) },
 			texture_size: unsafe { std::mem::transmute(texture_size) },
+			global_screen_aspect: global_screen_size.0 / global_screen_size.1,
 			screen_aspect: screen_size.0 / screen_size.1,
 			texture_aspect: texture_size.0 / texture_size.1,
 			progress: unsafe { std::mem::transmute(progress) },
 			bg_color: unsafe { std::mem::transmute(bg_color) },
-			_padding: [0u8; 224],
+			_padding: [0u8; 212],
 		}
 	}
 
@@ -80,6 +85,7 @@ impl PerFrameUniformManager {
 			mapped_at_creation: false,
 		});
 		let data = PerFrameDataUniform::new(
+			(screen_size.0 as f32, screen_size.1 as f32),
 			(screen_size.0 as f32, screen_size.1 as f32),
 			(texture_size.0 as f32, texture_size.1 as f32),
 			TransitionProgress::reset(),

@@ -9,8 +9,10 @@ struct VertexOutput {
 }
 
 struct PerFrameDataUniform {
+    global_screen_size: vec2<f32>,
     screen_size: vec2<f32>,
     texture_size: vec2<f32>,
+    global_screen_aspect: f32,
     screen_aspect: f32,
     texture_aspect: f32,
     progress_bezier: f32,
