@@ -26,6 +26,8 @@ pub trait Renderer {
 
 	fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()>;
 
+	fn update_virtual_screen_data(&mut self, offset: (f32, f32), scale: (f32, f32));
+
 	fn get_transition_progress(&self) -> TransitionProgress;
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress);

@@ -13,7 +13,9 @@ struct PerFrameDataUniform {
 	texture_aspect: f32,
 	progress: [f32; 2],
 	bg_color: [f32; 4],
-	_padding: [u8; 212],
+	offset: [f32; 2],
+	scale: [f32; 2],
+	_padding: [u8; 196],
 }
 
 impl PerFrameDataUniform {
@@ -23,6 +25,8 @@ impl PerFrameDataUniform {
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
 		bg_color: Color,
+		offset: (f32, f32),
+		scale: (f32, f32),
 	) -> Self {
 		Self {
 			virtual_screen_size: unsafe { std::mem::transmute(global_screen_size) },
@@ -33,7 +37,9 @@ impl PerFrameDataUniform {
 			texture_aspect: texture_size.0 / texture_size.1,
 			progress: unsafe { std::mem::transmute(progress) },
 			bg_color: unsafe { std::mem::transmute(bg_color) },
-			_padding: [0u8; 212],
+			offset: unsafe { std::mem::transmute(offset) },
+			scale: unsafe { std::mem::transmute(scale) },
+			_padding: [0u8; 196],
 		}
 	}
 
@@ -43,6 +49,11 @@ impl PerFrameDataUniform {
 
 	fn transition_progress(&self) -> TransitionProgress {
 		unsafe { std::mem::transmute(self.progress) }
+	}
+
+	fn update_virtual_screen_size(&mut self, new_size: (f32, f32)) {
+		self.virtual_screen_size = unsafe { std::mem::transmute(new_size) };
+		self.virtual_screen_aspect = new_size.0 / new_size.1;
 	}
 
 	fn update_screen_size(&mut self, new_size: (f32, f32)) {
@@ -57,6 +68,11 @@ impl PerFrameDataUniform {
 
 	fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
 		self.progress = unsafe { std::mem::transmute(new_progress) };
+	}
+
+	fn update_virtual_screen_data(&mut self, offset: (f32, f32), scale: (f32, f32)) {
+		self.offset = unsafe { std::mem::transmute(offset) };
+		self.scale = unsafe { std::mem::transmute(scale) };
 	}
 }
 
@@ -89,6 +105,8 @@ impl PerFrameUniformManager {
 			(texture_size.0 as f32, texture_size.1 as f32),
 			TransitionProgress::reset(),
 			bg_color,
+			(0.0, 0.0),
+			(0.0, 0.0),
 		);
 
 		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -140,6 +158,10 @@ impl PerFrameUniformManager {
 		&self.bind_group
 	}
 
+	pub fn update_virtual_screen_size(&mut self, new_size: (f32, f32)) {
+		self.data.update_virtual_screen_size(new_size);
+	}
+
 	pub fn update_screen_size(&mut self, new_size: (f32, f32)) {
 		self.data.update_screen_size(new_size);
 	}
@@ -150,5 +172,9 @@ impl PerFrameUniformManager {
 
 	pub fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
 		self.data.update_transition_progress(new_progress);
+	}
+
+	pub fn update_virtual_screen_data(&mut self, offset: (f32, f32), scale: (f32, f32)) {
+		self.data.update_virtual_screen_data(offset, scale);
 	}
 }

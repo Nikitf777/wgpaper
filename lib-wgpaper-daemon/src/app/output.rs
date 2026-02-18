@@ -70,6 +70,18 @@ impl OutputStateEntry {
 		Ok(())
 	}
 
+	fn update_virtual_screen_data(
+		&mut self,
+		offset: (f32, f32),
+		scale: (f32, f32),
+	) -> anyhow::Result<()> {
+		self.renderer
+			.as_mut()
+			.context("Renderer is not initialized")?
+			.update_virtual_screen_data(offset, scale);
+		Ok(())
+	}
+
 	pub fn resize(&mut self, size: (u32, u32)) {
 		if size.0 == 0 || size.1 == 0 {
 			return;
@@ -141,6 +153,32 @@ fn calculate_global_bounds(output_state: &OutputState) -> anyhow::Result<Bounds>
 	Ok(Bounds::new((max_x, max_y), (min_x, min_y)))
 }
 
+fn calculate_virtual_screen_data(
+	global_bounds: Bounds,
+	output_info: OutputInfo,
+) -> anyhow::Result<((f32, f32), (f32, f32))> {
+	let pos = output_info
+		.logical_position
+		.context("Failed to get the output's logical position")?;
+	let size = output_info
+		.logical_size
+		.context("Failed to get the output's logical size")?;
+
+	let gpos = global_bounds.position;
+	let gsize = global_bounds.size;
+
+	Ok((
+		(
+			(pos.0 - gpos.0) as f32 / gsize.0 as f32,
+			(pos.1 - gpos.1) as f32 / gsize.1 as f32,
+		),
+		(
+			size.0 as f32 / gsize.0 as f32,
+			size.1 as f32 / gsize.1 as f32,
+		),
+	))
+}
+
 pub struct OutputManager {
 	outputs: HashMap<WlSurface, OutputStateEntry>,
 	output_state: OutputState,
@@ -156,13 +194,6 @@ impl OutputManager {
 
 	pub fn output_state(&mut self) -> &mut OutputState {
 		&mut self.output_state
-	}
-
-	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
-		for (_, output) in self.outputs.iter_mut() {
-			output.frame(qh);
-			output.commit();
-		}
 	}
 
 	pub fn start_transition(
@@ -245,24 +276,36 @@ impl OutputManager {
 		configure: &LayerSurfaceConfigure,
 		wallpaper_state: &WallpaperState,
 	) {
-		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			output
-				.init_renderer(
-					conn,
-					configure.new_size,
-					&RendererOptions {
-						gpu_selector: &wallpaper_state.gpu_selector,
-						shader_source: wallpaper_state.shader_source.as_deref(),
-						initial_image: wallpaper_state.current_image.as_ref(),
-						scaling_mode: &wallpaper_state.scaling_mode,
-					},
-				)
-				.unwrap_or_else(|err| {
-					error!("Renderer init failed: {}", err);
-					std::process::exit(1);
-				});
+		for output in self.outputs.values_mut() {
+			if &output.layer == layer {
+				output
+					.init_renderer(
+						conn,
+						configure.new_size,
+						&RendererOptions {
+							gpu_selector: &wallpaper_state.gpu_selector,
+							shader_source: wallpaper_state.shader_source.as_deref(),
+							initial_image: wallpaper_state.current_image.as_ref(),
+							scaling_mode: &wallpaper_state.scaling_mode,
+						},
+					)
+					.unwrap_or_else(|err| {
+						error!("Renderer init failed: {}", err);
+						std::process::exit(1);
+					});
+			}
 
-			self.queue_render_all(qh);
+			let global_bounds = calculate_global_bounds(&self.output_state).unwrap();
+			let (offset, scale) = calculate_virtual_screen_data(
+				global_bounds,
+				output.get_info(&self.output_state).unwrap(),
+			)
+			.unwrap();
+
+			let _ = output.update_virtual_screen_data(offset, scale);
+
+			output.frame(qh);
+			output.commit();
 		}
 	}
 }

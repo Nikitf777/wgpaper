@@ -436,6 +436,11 @@ impl Renderer for WgpuRenderer {
 		Ok(())
 	}
 
+	fn update_virtual_screen_data(&mut self, offset: (f32, f32), scale: (f32, f32)) {
+		self.per_frame_uniform_manager
+			.update_virtual_screen_data(offset, scale);
+	}
+
 	fn get_transition_progress(&self) -> TransitionProgress {
 		self.per_frame_uniform_manager.transition_progress()
 	}
