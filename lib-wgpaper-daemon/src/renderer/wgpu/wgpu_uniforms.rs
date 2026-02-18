@@ -1,7 +1,6 @@
+use crate::transition::TransitionProgress;
 use csscolorparser::Color;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, Queue};
-
-use crate::transition::TransitionProgress;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
