@@ -1,5 +1,6 @@
 use std::{collections::HashMap, num::NonZeroU32};
 
+use anyhow::{Context, Ok};
 use smithay_client_toolkit::{
 	compositor::CompositorState,
 	output::OutputState,
@@ -142,6 +143,44 @@ impl OutputStateEntry {
 			renderer.set_next_image(image);
 		}
 	}
+}
+
+struct Bounds {
+	position: (i32, i32),
+	size: (u32, u32),
+}
+
+impl Bounds {
+	fn new(top_left: (i32, i32), bottom_right: (i32, i32)) -> Self {
+		Self {
+			position: top_left,
+			size: (
+				(top_left.0 - bottom_right.0) as u32,
+				(top_left.1 - bottom_right.1) as u32,
+			),
+		}
+	}
+}
+
+fn calculate_global_bounds(output_state: &OutputState) -> anyhow::Result<Bounds> {
+	let mut max_x = 0;
+	let mut max_y = 0;
+	let mut min_x = 0;
+	let mut min_y = 0;
+	for o in output_state.outputs() {
+		let info = output_state
+			.info(&o)
+			.context("Failed to get the output's info")?;
+		let position = info
+			.logical_position
+			.context("Failed to get the output's logical position")?;
+		max_x = position.0.max(max_x);
+		max_y = position.1.max(max_y);
+		min_x = position.0.min(min_x);
+		min_y = position.1.min(min_y);
+	}
+
+	Ok(Bounds::new((max_x, max_y), (min_x, min_y)))
 }
 
 pub struct OutputManager {
