@@ -10,6 +10,7 @@ env_logger = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+dotenvy = { workspace = true }
 
 lib-wgpaper-daemon = { path = "../lib-wgpaper-daemon" }
 wgpaper-config = { path = "../wgpaper-config" }

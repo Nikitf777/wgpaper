@@ -8,7 +8,7 @@ use anyhow::{Context, Ok};
 use log::{error, warn};
 use smithay_client_toolkit::{
 	compositor::CompositorState,
-	output::OutputState,
+	output::{OutputInfo, OutputState},
 	shell::{
 		WaylandSurface,
 		wlr_layer::{
@@ -35,6 +35,10 @@ impl OutputStateEntry {
 			layer,
 			renderer: None,
 		}
+	}
+
+	fn get_info(&self, output_state: &OutputState) -> Option<OutputInfo> {
+		output_state.info(&self.output)
 	}
 
 	pub fn commit(&self) {

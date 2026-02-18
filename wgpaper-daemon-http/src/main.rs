@@ -11,8 +11,19 @@ use wgpaper_config::Config;
 mod handlers;
 mod server;
 
+#[cfg(debug_assertions)]
+fn load_env() {
+	dotenvy::dotenv().unwrap_or_else(|err| {
+		error!("Failed open the env file: {}.", err.to_string());
+		std::process::exit(1);
+	});
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+	#[cfg(debug_assertions)]
+	load_env();
+
 	env_logger::init();
 
 	let config = Config::try_new()
