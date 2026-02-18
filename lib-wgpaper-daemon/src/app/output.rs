@@ -5,7 +5,7 @@ use crate::{
 	transition::TransitionProgress,
 };
 use anyhow::{Context, Ok};
-use log::warn;
+use log::{error, warn};
 use smithay_client_toolkit::{
 	compositor::CompositorState,
 	output::OutputState,
@@ -242,18 +242,21 @@ impl OutputManager {
 		wallpaper_state: &WallpaperState,
 	) {
 		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			if let Err(e) = output.init_renderer(
-				conn,
-				configure.new_size,
-				&RendererOptions {
-					gpu_selector: &wallpaper_state.gpu_selector,
-					shader_source: wallpaper_state.shader_source.as_deref(),
-					initial_image: wallpaper_state.current_image.as_ref(),
-					scaling_mode: &wallpaper_state.scaling_mode,
-				},
-			) {
-				warn!("Renderer init failed: {}", e);
-			}
+			output
+				.init_renderer(
+					conn,
+					configure.new_size,
+					&RendererOptions {
+						gpu_selector: &wallpaper_state.gpu_selector,
+						shader_source: wallpaper_state.shader_source.as_deref(),
+						initial_image: wallpaper_state.current_image.as_ref(),
+						scaling_mode: &wallpaper_state.scaling_mode,
+					},
+				)
+				.unwrap_or_else(|err| {
+					error!("Renderer init failed: {}", err);
+					std::process::exit(1);
+				});
 
 			self.queue_render_all(qh);
 		}
