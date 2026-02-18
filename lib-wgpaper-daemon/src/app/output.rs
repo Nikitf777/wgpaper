@@ -1,7 +1,7 @@
 use crate::{
 	app::{SctkState, core::WallpaperState},
 	image_wrapper::ImageWrapper,
-	renderer::{Renderer, wgpu::wgpu_renderer::WgpuRenderer},
+	renderer::{Renderer, RendererOptions, wgpu::wgpu_renderer::WgpuRenderer},
 	transition::TransitionProgress,
 };
 use anyhow::{Context, Ok};
@@ -21,7 +21,6 @@ use wayland_client::{
 	Connection, QueueHandle,
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
-use wgpaper_config::{GpuSelector, ScalingMode};
 
 pub struct OutputStateEntry {
 	output: WlOutput,
@@ -64,20 +63,9 @@ impl OutputStateEntry {
 		&mut self,
 		conn: &Connection,
 		size: (u32, u32),
-		gpu_selector: GpuSelector,
-		shader_source: Option<&str>,
-		initial_image: Option<&ImageWrapper>,
-		scaling_mode: &ScalingMode,
+		options: &RendererOptions,
 	) -> anyhow::Result<()> {
-		let renderer = WgpuRenderer::new(
-			conn,
-			&self.layer,
-			size,
-			gpu_selector,
-			shader_source,
-			initial_image,
-			scaling_mode,
-		)?;
+		let renderer = WgpuRenderer::new(conn, &self.layer, size, options)?;
 		self.renderer = Some(renderer);
 		Ok(())
 	}
@@ -262,10 +250,12 @@ impl OutputManager {
 				if let Err(e) = output.init_renderer(
 					conn,
 					configure.new_size,
-					wallpaper_state.gpu_selector.clone(),
-					wallpaper_state.shader_source.as_deref(),
-					wallpaper_state.current_image.as_ref(),
-					&wallpaper_state.scaling_mode,
+					&RendererOptions {
+						gpu_selector: &wallpaper_state.gpu_selector,
+						shader_source: wallpaper_state.shader_source.as_deref(),
+						initial_image: wallpaper_state.current_image.as_ref(),
+						scaling_mode: &wallpaper_state.scaling_mode,
+					},
 				) {
 					warn!("Renderer init failed: {}", e);
 				}

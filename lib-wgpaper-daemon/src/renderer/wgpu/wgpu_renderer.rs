@@ -2,7 +2,7 @@ use super::{wgpu_selector, wgpu_texture};
 use crate::{
 	image_wrapper::ImageWrapper,
 	renderer::{
-		self, Renderer,
+		self, Renderer, RendererOptions,
 		wgpu::{
 			wgpu_shaders,
 			wgpu_uniforms::PerFrameUniformManager,
@@ -16,7 +16,6 @@ use anyhow::Context;
 use pollster::FutureExt;
 use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
 use wayland_client::Connection;
-use wgpaper_config::ScalingMode;
 use wgpu::{CommandEncoder, SurfaceError};
 
 pub struct WgpuRenderer {
@@ -89,10 +88,7 @@ impl Renderer for WgpuRenderer {
 		conn: &Connection,
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
-		gpu_selector: wgpaper_config::GpuSelector,
-		shader_source: Option<&str>,
-		initial_image: Option<&ImageWrapper>,
-		scaling_mode: &ScalingMode,
+		options: &RendererOptions,
 	) -> anyhow::Result<Self> {
 		let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
 			backends: wgpu::Backends::PRIMARY,
@@ -101,7 +97,7 @@ impl Renderer for WgpuRenderer {
 
 		let surface = create_surface(&instance, conn, layer_surface)?;
 
-		let gpu_selector = renderer::GpuSelector::from(gpu_selector);
+		let gpu_selector = renderer::GpuSelector::from(options.gpu_selector.clone());
 		let adapter = pollster::block_on(wgpu_selector::select_gpu(
 			&instance,
 			wgpu_selector::WgpuSelector::from(gpu_selector),
@@ -126,7 +122,7 @@ impl Renderer for WgpuRenderer {
 
 		let placeholder_rgba8 = vec![0u8; (size.0 * size.1 * 4) as usize]; // Fully black rectangle
 		let placeholder_image = ImageWrapper::from_rgba8(placeholder_rgba8, size);
-		let initial_image = initial_image.unwrap_or(&placeholder_image);
+		let initial_image = options.initial_image.unwrap_or(&placeholder_image);
 
 		let initial_texture = wgpu_texture::WgpuTexture::from_image(
 			&device,
@@ -136,7 +132,8 @@ impl Renderer for WgpuRenderer {
 			surface_format,
 		)?;
 
-		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(scaling_mode);
+		let (address_mode, bg_color) =
+			wgpu_utilities::get_address_mode_and_bg_color(options.scaling_mode);
 
 		let sampler = wgpu_utilities::create_sampler(&device, address_mode);
 
@@ -204,7 +201,7 @@ impl Renderer for WgpuRenderer {
 		});
 
 		let scaling_fragment_shader =
-			wgpu_shaders::create_scaling_fragment_shader(&device, scaling_mode);
+			wgpu_shaders::create_scaling_fragment_shader(&device, options.scaling_mode);
 
 		let scaling_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -310,7 +307,8 @@ impl Renderer for WgpuRenderer {
 			label: Some("animation_texture_bind_group"),
 		});
 
-		let animation_shader = wgpu_shaders::create_animation_shader(&device, shader_source);
+		let animation_shader =
+			wgpu_shaders::create_animation_shader(&device, options.shader_source);
 
 		let animation_pipeline_layout =
 			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

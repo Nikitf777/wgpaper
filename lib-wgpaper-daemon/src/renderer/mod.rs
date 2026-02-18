@@ -5,15 +5,19 @@ use wgpaper_config::ScalingMode;
 
 pub mod wgpu;
 
+pub struct RendererOptions<'a> {
+	pub gpu_selector: &'a wgpaper_config::GpuSelector,
+	pub shader_source: Option<&'a str>,
+	pub initial_image: Option<&'a ImageWrapper>,
+	pub scaling_mode: &'a ScalingMode,
+}
+
 pub trait Renderer {
 	fn new(
 		conn: &Connection,
 		layer_surface: &LayerSurface,
 		size: (u32, u32),
-		gpu_selector: wgpaper_config::GpuSelector,
-		shader_source: Option<&str>,
-		initial_image: Option<&ImageWrapper>,
-		scaling_mode: &ScalingMode,
+		options: &RendererOptions,
 	) -> anyhow::Result<Self>
 	where
 		Self: Sized;
