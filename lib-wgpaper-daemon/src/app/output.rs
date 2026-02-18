@@ -37,10 +37,6 @@ impl OutputStateEntry {
 		}
 	}
 
-	pub fn is_initialized(&self) -> bool {
-		self.renderer.is_some()
-	}
-
 	pub fn commit(&self) {
 		self.layer.wl_surface().commit();
 	}
@@ -246,19 +242,17 @@ impl OutputManager {
 		wallpaper_state: &WallpaperState,
 	) {
 		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			if !output.is_initialized() {
-				if let Err(e) = output.init_renderer(
-					conn,
-					configure.new_size,
-					&RendererOptions {
-						gpu_selector: &wallpaper_state.gpu_selector,
-						shader_source: wallpaper_state.shader_source.as_deref(),
-						initial_image: wallpaper_state.current_image.as_ref(),
-						scaling_mode: &wallpaper_state.scaling_mode,
-					},
-				) {
-					warn!("Renderer init failed: {}", e);
-				}
+			if let Err(e) = output.init_renderer(
+				conn,
+				configure.new_size,
+				&RendererOptions {
+					gpu_selector: &wallpaper_state.gpu_selector,
+					shader_source: wallpaper_state.shader_source.as_deref(),
+					initial_image: wallpaper_state.current_image.as_ref(),
+					scaling_mode: &wallpaper_state.scaling_mode,
+				},
+			) {
+				warn!("Renderer init failed: {}", e);
 			}
 
 			self.queue_render_all(qh);
