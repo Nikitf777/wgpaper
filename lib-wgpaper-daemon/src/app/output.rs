@@ -1,5 +1,9 @@
-use std::collections::HashMap;
-
+use crate::{
+	app::{SctkState, core::WallpaperState},
+	image_wrapper::ImageWrapper,
+	renderer::{Renderer, wgpu::wgpu_renderer::WgpuRenderer},
+	transition::TransitionProgress,
+};
 use anyhow::{Context, Ok};
 use log::warn;
 use smithay_client_toolkit::{
@@ -12,18 +16,12 @@ use smithay_client_toolkit::{
 		},
 	},
 };
+use std::collections::HashMap;
 use wayland_client::{
 	Connection, QueueHandle,
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
 use wgpaper_config::{GpuSelector, ScalingMode};
-
-use crate::{
-	app::{SctkState, core::WallpaperState},
-	image_wrapper::ImageWrapper,
-	renderer::{Renderer, wgpu::wgpu_renderer::WgpuRenderer},
-	transition::TransitionProgress,
-};
 
 pub struct OutputStateEntry {
 	output: WlOutput,
