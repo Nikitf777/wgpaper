@@ -6,10 +6,10 @@ use crate::transition::TransitionProgress;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct PerFrameDataUniform {
-	global_screen_size: [f32; 2],
+	virtual_screen_size: [f32; 2],
 	screen_size: [f32; 2],
 	texture_size: [f32; 2],
-	global_screen_aspect: f32,
+	virtual_screen_aspect: f32,
 	screen_aspect: f32,
 	texture_aspect: f32,
 	progress: [f32; 2],
@@ -26,10 +26,10 @@ impl PerFrameDataUniform {
 		bg_color: Color,
 	) -> Self {
 		Self {
-			global_screen_size: unsafe { std::mem::transmute(global_screen_size) },
+			virtual_screen_size: unsafe { std::mem::transmute(global_screen_size) },
 			screen_size: unsafe { std::mem::transmute(screen_size) },
 			texture_size: unsafe { std::mem::transmute(texture_size) },
-			global_screen_aspect: global_screen_size.0 / global_screen_size.1,
+			virtual_screen_aspect: global_screen_size.0 / global_screen_size.1,
 			screen_aspect: screen_size.0 / screen_size.1,
 			texture_aspect: texture_size.0 / texture_size.1,
 			progress: unsafe { std::mem::transmute(progress) },
