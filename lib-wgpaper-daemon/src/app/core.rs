@@ -1,6 +1,5 @@
-use wgpaper_config::{GpuSelector, ScalingMode};
-
 use crate::{image_wrapper::ImageWrapper, transition::ActiveTransition};
+use wgpaper_config::{GpuSelector, ScalingMode};
 
 pub struct WallpaperState {
 	pub gpu_selector: GpuSelector,
