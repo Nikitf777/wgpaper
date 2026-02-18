@@ -262,8 +262,6 @@ impl OutputManager {
 		wallpaper_state: &WallpaperState,
 	) {
 		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			output.resize(configure.new_size);
-
 			if !output.is_initialized() {
 				if let Err(e) = output.init_renderer(
 					conn,
