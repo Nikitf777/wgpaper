@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU32};
+use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
 use smithay_client_toolkit::{
@@ -31,7 +31,6 @@ pub struct OutputStateEntry {
 	output: WlOutput,
 	layer: LayerSurface,
 	renderer: Option<WgpuRenderer>,
-	size: (u32, u32),
 }
 
 impl OutputStateEntry {
@@ -40,31 +39,11 @@ impl OutputStateEntry {
 			output,
 			layer,
 			renderer: None,
-			size: (0, 0),
 		}
-	}
-
-	pub fn size(&self) -> (u32, u32) {
-		self.size
-	}
-
-	pub fn width(&self) -> u32 {
-		self.size.0
-	}
-
-	pub fn height(&self) -> u32 {
-		self.size.1
 	}
 
 	pub fn is_initialized(&self) -> bool {
 		self.renderer.is_some()
-	}
-
-	pub fn set_size(&mut self, size: (u32, u32)) {
-		self.size = (
-			NonZeroU32::new(size.0).map_or(256, NonZeroU32::get),
-			NonZeroU32::new(size.1).map_or(256, NonZeroU32::get),
-		);
 	}
 
 	pub fn commit(&self) {
@@ -78,10 +57,6 @@ impl OutputStateEntry {
 	}
 
 	pub fn render(&mut self) {
-		if self.size.0 == 0 || self.size.1 == 0 {
-			return;
-		}
-
 		if let Some(renderer) = &mut self.renderer {
 			if let Err(e) = renderer.render() {
 				eprintln!("Rendering error: {}", e);
@@ -92,6 +67,7 @@ impl OutputStateEntry {
 	pub fn init_renderer(
 		&mut self,
 		conn: &Connection,
+		size: (u32, u32),
 		gpu_selector: GpuSelector,
 		shader_source: Option<&str>,
 		initial_image: Option<&ImageWrapper>,
@@ -100,7 +76,7 @@ impl OutputStateEntry {
 		let renderer = wgpu_renderer::WgpuRenderer::new(
 			conn,
 			&self.layer,
-			self.size,
+			size,
 			gpu_selector,
 			shader_source,
 			initial_image,
@@ -111,8 +87,6 @@ impl OutputStateEntry {
 	}
 
 	pub fn resize(&mut self, size: (u32, u32)) {
-		self.set_size(size);
-
 		if size.0 == 0 || size.1 == 0 {
 			return;
 		}
@@ -293,6 +267,7 @@ impl OutputManager {
 			if !output.is_initialized() {
 				if let Err(e) = output.init_renderer(
 					conn,
+					configure.new_size,
 					wallpaper_state.gpu_selector.clone(),
 					wallpaper_state.shader_source.as_deref(),
 					wallpaper_state.current_image.as_ref(),
