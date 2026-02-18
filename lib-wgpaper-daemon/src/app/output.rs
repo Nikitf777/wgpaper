@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Ok};
+use log::warn;
 use smithay_client_toolkit::{
 	compositor::CompositorState,
 	output::OutputState,
@@ -59,7 +60,7 @@ impl OutputStateEntry {
 	pub fn render(&mut self) {
 		if let Some(renderer) = &mut self.renderer {
 			if let Err(e) = renderer.render() {
-				eprintln!("Rendering error: {}", e);
+				warn!("Rendering error: {}", e);
 			}
 		}
 	}
@@ -93,7 +94,7 @@ impl OutputStateEntry {
 
 		if let Some(renderer) = &mut self.renderer {
 			if let Err(e) = renderer.resize(size) {
-				eprintln!("Resize error: {}", e);
+				warn!("Resize error: {}", e);
 			}
 		}
 	}
@@ -271,7 +272,7 @@ impl OutputManager {
 					wallpaper_state.current_image.as_ref(),
 					&wallpaper_state.scaling_mode,
 				) {
-					eprintln!("Renderer init failed: {}", e);
+					warn!("Renderer init failed: {}", e);
 				}
 			}
 
