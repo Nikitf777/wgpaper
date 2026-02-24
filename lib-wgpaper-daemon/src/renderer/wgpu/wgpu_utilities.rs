@@ -8,8 +8,9 @@ use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
-	AddressMode, CommandEncoder, Device, Instance, LoadOp, Operations, RenderPass,
-	RenderPassColorAttachment, RenderPassDescriptor, Sampler, StoreOp, Surface, TextureView,
+	AddressMode, BindGroup, CommandEncoder, Device, Instance, LoadOp, Operations, RenderPass,
+	RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, Sampler, StoreOp, Surface,
+	TextureView,
 };
 
 pub fn create_surface<'a>(
@@ -101,4 +102,16 @@ pub fn begin_render_pass<'tex>(
 		color_attachments: &[Some(color_attachment)],
 		..Default::default()
 	})
+}
+
+pub fn render_pass<'tex>(
+	render_pass: &mut RenderPass<'tex>,
+	pipeline: &RenderPipeline,
+	texture_bind_group: &BindGroup,
+	per_frame_data_bind_group: &BindGroup,
+) {
+	render_pass.set_pipeline(&pipeline);
+	render_pass.set_bind_group(0, texture_bind_group, &[]);
+	render_pass.set_bind_group(1, per_frame_data_bind_group, &[]);
+	render_pass.draw(0..3, 0..1);
 }
