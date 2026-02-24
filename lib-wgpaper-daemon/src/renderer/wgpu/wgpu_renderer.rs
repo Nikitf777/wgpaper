@@ -394,11 +394,7 @@ impl Renderer for WgpuRenderer {
 			Err(e) => return Err(anyhow::anyhow!("Failed to acquire next texture: {}", e)),
 		};
 
-		let mut encoder = self
-			.device
-			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-				label: Some("encoder"),
-			});
+		let mut encoder = wgpu_utilities::create_command_encoder(&self.device, "encoder");
 
 		self.render_scale(&mut encoder);
 		self.render_animation(&mut encoder);

@@ -70,6 +70,10 @@ pub fn create_sampler(device: &Device, address_mode: AddressMode) -> Sampler {
 	})
 }
 
+pub fn create_command_encoder(device: &Device, label: &str) -> CommandEncoder {
+	device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) })
+}
+
 pub fn create_color_attachment<'tex>(view: &'tex TextureView) -> RenderPassColorAttachment<'tex> {
 	RenderPassColorAttachment {
 		view: view,
