@@ -10,7 +10,6 @@ use crate::{
 		},
 	},
 	transition::TransitionProgress,
-	utilities::lerp::Lerp,
 };
 use anyhow::Context;
 use pollster::FutureExt;
@@ -37,7 +36,6 @@ pub struct WgpuRenderer {
 	scaling_texture_bind_group_layout: wgpu::BindGroupLayout,
 	scaling_texture_bind_group: wgpu::BindGroup,
 	per_frame_uniform_manager: PerFrameUniformManager,
-	prev_image_size: (f32, f32),
 	scaling_pipeline: wgpu::RenderPipeline,
 }
 
@@ -358,8 +356,6 @@ impl Renderer for WgpuRenderer {
 		};
 		surface.configure(&device, &config);
 
-		let image_size_f32 = (initial_image.width() as f32, initial_image.height() as f32);
-
 		Ok(Self {
 			device,
 			queue,
@@ -379,7 +375,6 @@ impl Renderer for WgpuRenderer {
 			scaling_texture_bind_group_layout,
 			scaling_texture_bind_group,
 			per_frame_uniform_manager,
-			prev_image_size: image_size_f32,
 			scaling_pipeline,
 		})
 	}
@@ -438,21 +433,11 @@ impl Renderer for WgpuRenderer {
 
 	fn set_transition_progress(&mut self, progress: TransitionProgress) {
 		self.per_frame_uniform_manager
-			.update_texture_size(self.prev_image_size.lerp(
-				(
-					self.to_texture.texture.width() as f32,
-					self.to_texture.texture.height() as f32,
-				),
-				progress.progress_bezier,
-			));
-		self.per_frame_uniform_manager
 			.update_transition_progress(progress);
 		self.per_frame_uniform_manager.write_data(&self.queue);
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		self.prev_image_size = self.per_frame_uniform_manager.texture_size();
-
 		self.to_texture = wgpu_texture::WgpuTexture::from_image(
 			&self.device,
 			&self.queue,
@@ -461,6 +446,11 @@ impl Renderer for WgpuRenderer {
 			self.config.format,
 		)
 		.unwrap();
+
+		self.per_frame_uniform_manager.update_texture_size((
+			self.to_texture.texture.width() as f32,
+			self.to_texture.texture.height() as f32,
+		));
 
 		self.display_texture_idx = self.render_texture_idx;
 		self.render_texture_idx = (self.display_texture_idx + 1) % 3;

@@ -37,10 +37,6 @@ impl PerFrameDataUniform {
 		}
 	}
 
-	fn texture_size(&self) -> (f32, f32) {
-		unsafe { std::mem::transmute(self.texture_size) }
-	}
-
 	fn transition_progress(&self) -> TransitionProgress {
 		unsafe { std::mem::transmute(self.progress) }
 	}
@@ -126,10 +122,6 @@ impl PerFrameUniformManager {
 
 	pub fn write_data(&self, queue: &Queue) {
 		write_per_frame_data(&self.data, queue, &self.buffer);
-	}
-
-	pub fn texture_size(&self) -> (f32, f32) {
-		self.data.texture_size()
 	}
 
 	pub fn transition_progress(&self) -> TransitionProgress {
