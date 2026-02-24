@@ -8,9 +8,10 @@ use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
-	AddressMode, BindGroup, CommandEncoder, Device, Instance, LoadOp, Operations, RenderPass,
-	RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, Sampler, StoreOp, Surface,
-	TextureView,
+	AddressMode, BindGroup, Color, CommandEncoder, CommandEncoderDescriptor, Device, FilterMode,
+	Instance, LoadOp, MipmapFilterMode, Operations, RenderPass, RenderPassColorAttachment,
+	RenderPassDescriptor, RenderPipeline, Sampler, SamplerDescriptor, StoreOp, Surface,
+	SurfaceTargetUnsafe, TextureView,
 };
 
 pub fn create_surface<'a>(
@@ -27,7 +28,7 @@ pub fn create_surface<'a>(
 
 	Ok(unsafe {
 		instance
-			.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+			.create_surface_unsafe(SurfaceTargetUnsafe::RawHandle {
 				raw_display_handle,
 				raw_window_handle,
 			})
@@ -60,26 +61,26 @@ pub fn get_address_mode_and_bg_color(
 }
 
 pub fn create_sampler(device: &Device, address_mode: AddressMode) -> Sampler {
-	device.create_sampler(&wgpu::SamplerDescriptor {
+	device.create_sampler(&SamplerDescriptor {
 		label: Some("sampler"),
 		address_mode_u: address_mode,
 		address_mode_v: address_mode,
-		mag_filter: wgpu::FilterMode::Linear,
-		min_filter: wgpu::FilterMode::Linear,
-		mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+		mag_filter: FilterMode::Linear,
+		min_filter: FilterMode::Linear,
+		mipmap_filter: MipmapFilterMode::Nearest,
 		..Default::default()
 	})
 }
 
 pub fn create_command_encoder(device: &Device, label: &str) -> CommandEncoder {
-	device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) })
+	device.create_command_encoder(&CommandEncoderDescriptor { label: Some(label) })
 }
 
 pub fn create_color_attachment<'tex>(view: &'tex TextureView) -> RenderPassColorAttachment<'tex> {
 	RenderPassColorAttachment {
 		view: view,
 		ops: Operations {
-			load: LoadOp::Clear(wgpu::Color {
+			load: LoadOp::Clear(Color {
 				r: 0.1,
 				g: 0.2,
 				b: 0.3,
