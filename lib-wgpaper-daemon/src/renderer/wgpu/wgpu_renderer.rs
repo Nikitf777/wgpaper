@@ -6,6 +6,7 @@ use crate::{
 		wgpu::{
 			wgpu_shaders,
 			wgpu_texture_scaler::WgpuTextureScaler,
+			wgpu_transition_renderer::WgpuTransitionRenderer,
 			wgpu_uniforms::PerFrameUniformManager,
 			wgpu_utilities::{self, create_surface},
 		},
@@ -28,44 +29,21 @@ pub struct WgpuRenderer {
 	texture_scaler: WgpuTextureScaler,
 	scaled_texture: wgpu_texture::WgpuTexture,
 
+	transition_renderer: WgpuTransitionRenderer,
 	offscreen_textures: [wgpu_texture::WgpuTexture; 3],
 	target_texture: wgpu_texture::WgpuTexture,
 	display_texture_idx: usize,
 	render_texture_idx: usize,
-	animation_texture_bind_group_layout: wgpu::BindGroupLayout,
-	animation_texture_bind_group: wgpu::BindGroup,
-	animation_pipeline: wgpu::RenderPipeline,
 
 	per_frame_uniform_manager: PerFrameUniformManager,
 }
 
 impl WgpuRenderer {
-	pub(super) fn render_pass<'tex>(
-		&self,
-		render_pass: &mut wgpu::RenderPass<'tex>,
-		pipeline: &wgpu::RenderPipeline,
-		texture_bind_group: &wgpu::BindGroup,
-	) {
-		wgpu_utilities::render_pass(
-			render_pass,
-			pipeline,
-			texture_bind_group,
-			self.per_frame_uniform_manager.bind_group(),
-		);
-	}
-
-	fn render_animation(&self, encoder: &mut CommandEncoder) {
-		let mut animation_render_pass = wgpu_utilities::begin_render_pass(
+	fn render_transition(&self, encoder: &mut CommandEncoder) {
+		self.transition_renderer.transition(
 			encoder,
-			wgpu_utilities::create_color_attachment(
-				&self.offscreen_textures[self.render_texture_idx].view,
-			),
-			&"animation_render_pass",
-		);
-		self.render_pass(
-			&mut animation_render_pass,
-			&self.animation_pipeline,
-			&self.animation_texture_bind_group,
+			&self.offscreen_textures[self.render_texture_idx].view,
+			self.per_frame_uniform_manager.bind_group(),
 		);
 	}
 }
@@ -177,98 +155,19 @@ impl Renderer for WgpuRenderer {
 		let display_texture_idx: usize = 0;
 		let render_texture_idx: usize = 1;
 
-		let animation_texture_bind_group_layout =
-			device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-				entries: &[
-					wgpu::BindGroupLayoutEntry {
-						binding: 0,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Texture {
-							multisampled: false,
-							sample_type: wgpu::TextureSampleType::Float { filterable: true },
-							view_dimension: wgpu::TextureViewDimension::D2,
-						},
-						count: None,
-					},
-					wgpu::BindGroupLayoutEntry {
-						binding: 1,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Texture {
-							multisampled: false,
-							sample_type: wgpu::TextureSampleType::Float { filterable: true },
-							view_dimension: wgpu::TextureViewDimension::D2,
-						},
-						count: None,
-					},
-					wgpu::BindGroupLayoutEntry {
-						binding: 2,
-						visibility: wgpu::ShaderStages::FRAGMENT,
-						ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-						count: None,
-					},
-				],
-				label: Some("animation_texture_bind_group_layout"),
-			});
-
-		let animation_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: &animation_texture_bind_group_layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::TextureView(&scaled_texture.view),
-				},
-				wgpu::BindGroupEntry {
-					binding: 1,
-					resource: wgpu::BindingResource::TextureView(
-						&offscreen_textures[display_texture_idx].view,
-					),
-				},
-				wgpu::BindGroupEntry {
-					binding: 2,
-					resource: wgpu::BindingResource::Sampler(&sampler),
-				},
-			],
-			label: Some("animation_texture_bind_group"),
-		});
-
-		let animation_shader =
+		let transition_shader =
 			wgpu_shaders::create_animation_shader(&device, options.shader_source);
 
-		let animation_pipeline_layout =
-			device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-				label: Some("animation_pipeline_layout"),
-				bind_group_layouts: &[
-					&animation_texture_bind_group_layout,
-					&per_frame_data_bind_group_layout,
-				],
-				immediate_size: 0,
-			});
-
-		let animation_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-			label: Some("animation_pipeline"),
-			layout: Some(&animation_pipeline_layout),
-			vertex: wgpu::VertexState {
-				module: &vertex_shader,
-				entry_point: Some("vs_main"),
-				buffers: &[],
-				compilation_options: Default::default(),
-			},
-			fragment: Some(wgpu::FragmentState {
-				module: &animation_shader,
-				entry_point: Some("fs_main"),
-				targets: &[Some(wgpu::ColorTargetState {
-					format: surface_format,
-					blend: Some(wgpu::BlendState::REPLACE),
-					write_mask: wgpu::ColorWrites::ALL,
-				})],
-				compilation_options: Default::default(),
-			}),
-			primitive: wgpu::PrimitiveState::default(),
-			depth_stencil: None,
-			multisample: wgpu::MultisampleState::default(),
-			multiview_mask: None,
-			cache: None,
-		});
+		let transition_renderer = WgpuTransitionRenderer::new(
+			&device,
+			&sampler,
+			&scaled_texture.view,
+			&offscreen_textures[display_texture_idx].view,
+			&per_frame_data_bind_group_layout,
+			&vertex_shader,
+			&transition_shader,
+			surface_format,
+		);
 
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
@@ -289,17 +188,15 @@ impl Renderer for WgpuRenderer {
 			config,
 
 			texture_scaler,
+			scaled_texture,
 
+			transition_renderer,
 			offscreen_textures,
 			target_texture: initial_texture,
 			display_texture_idx,
 			render_texture_idx,
-			animation_texture_bind_group_layout,
-			animation_texture_bind_group,
-			animation_pipeline,
 
 			sampler,
-			scaled_texture,
 			per_frame_uniform_manager,
 		})
 	}
@@ -316,7 +213,7 @@ impl Renderer for WgpuRenderer {
 
 		let mut encoder = wgpu_utilities::create_command_encoder(&self.device, "encoder");
 
-		self.render_animation(&mut encoder);
+		self.render_transition(&mut encoder);
 
 		encoder.copy_texture_to_texture(
 			wgpu::TexelCopyTextureInfo {
@@ -388,26 +285,11 @@ impl Renderer for WgpuRenderer {
 			self.per_frame_uniform_manager.bind_group(),
 		);
 
-		self.animation_texture_bind_group =
-			self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-				layout: &self.animation_texture_bind_group_layout,
-				entries: &[
-					wgpu::BindGroupEntry {
-						binding: 0,
-						resource: wgpu::BindingResource::TextureView(
-							&self.offscreen_textures[self.display_texture_idx].view,
-						),
-					},
-					wgpu::BindGroupEntry {
-						binding: 1,
-						resource: wgpu::BindingResource::TextureView(&self.scaled_texture.view),
-					},
-					wgpu::BindGroupEntry {
-						binding: 2,
-						resource: wgpu::BindingResource::Sampler(&self.sampler),
-					},
-				],
-				label: Some("animation_texture_bind_group"),
-			});
+		self.transition_renderer.update_textures(
+			&self.device,
+			&self.offscreen_textures[self.display_texture_idx].view,
+			&self.scaled_texture.view,
+			&self.sampler,
+		);
 	}
 }
