@@ -29,7 +29,7 @@ pub struct WgpuRenderer {
 	scaled_texture: wgpu_texture::WgpuTexture,
 
 	offscreen_textures: [wgpu_texture::WgpuTexture; 3],
-	to_texture: wgpu_texture::WgpuTexture,
+	target_texture: wgpu_texture::WgpuTexture,
 	display_texture_idx: usize,
 	render_texture_idx: usize,
 	animation_texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -291,7 +291,7 @@ impl Renderer for WgpuRenderer {
 			texture_scaler,
 
 			offscreen_textures,
-			to_texture: initial_texture,
+			target_texture: initial_texture,
 			display_texture_idx,
 			render_texture_idx,
 			animation_texture_bind_group_layout,
@@ -362,7 +362,7 @@ impl Renderer for WgpuRenderer {
 	}
 
 	fn set_next_image(&mut self, image: &ImageWrapper) {
-		self.to_texture = wgpu_texture::WgpuTexture::from_image(
+		self.target_texture = wgpu_texture::WgpuTexture::from_image(
 			&self.device,
 			&self.queue,
 			&image,
@@ -372,8 +372,8 @@ impl Renderer for WgpuRenderer {
 		.unwrap();
 
 		self.per_frame_uniform_manager.update_texture_size((
-			self.to_texture.texture.width() as f32,
-			self.to_texture.texture.height() as f32,
+			self.target_texture.texture.width() as f32,
+			self.target_texture.texture.height() as f32,
 		));
 
 		self.display_texture_idx = self.render_texture_idx;
@@ -383,7 +383,7 @@ impl Renderer for WgpuRenderer {
 			&self.device,
 			&self.queue,
 			&self.sampler,
-			&self.to_texture.view,
+			&self.target_texture.view,
 			&self.scaled_texture.view,
 			self.per_frame_uniform_manager.bind_group(),
 		);
