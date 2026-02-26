@@ -1,6 +1,10 @@
 use crate::transition::TransitionProgress;
 use csscolorparser::Color;
-use wgpu::{BindGroup, BindGroupLayout, Buffer, Queue};
+use wgpu::{
+	BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry,
+	BindingType, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferSize,
+	BufferUsages, Queue, ShaderStages,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -63,7 +67,7 @@ fn write_per_frame_data(data: &PerFrameDataUniform, queue: &Queue, buffer: &Buff
 pub struct PerFrameUniformManager {
 	data: PerFrameDataUniform,
 	buffer: Buffer,
-	bind_group: wgpu::BindGroup,
+	bind_group: BindGroup,
 }
 
 impl PerFrameUniformManager {
@@ -73,10 +77,10 @@ impl PerFrameUniformManager {
 		texture_size: (f32, f32),
 		bg_color: Color,
 	) -> (Self, BindGroupLayout) {
-		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+		let buffer = device.create_buffer(&BufferDescriptor {
 			label: Some("per_frame_data_uniform_buffer"),
-			size: std::mem::size_of::<PerFrameDataUniform>() as wgpu::BufferAddress,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+			size: std::mem::size_of::<PerFrameDataUniform>() as BufferAddress,
+			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		});
 		let data = PerFrameDataUniform::new(
@@ -88,22 +92,22 @@ impl PerFrameUniformManager {
 		);
 
 		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			entries: &[wgpu::BindGroupLayoutEntry {
+			entries: &[BindGroupLayoutEntry {
 				binding: 0,
-				visibility: wgpu::ShaderStages::FRAGMENT,
-				ty: wgpu::BindingType::Buffer {
-					ty: wgpu::BufferBindingType::Uniform,
+				visibility: ShaderStages::FRAGMENT,
+				ty: BindingType::Buffer {
+					ty: BufferBindingType::Uniform,
 					has_dynamic_offset: false,
-					min_binding_size: wgpu::BufferSize::new(256),
+					min_binding_size: BufferSize::new(256),
 				},
 				count: None,
 			}],
 			label: Some("per_frame_data_bind_group_layout"),
 		});
 
-		let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		let bind_group = device.create_bind_group(&BindGroupDescriptor {
 			layout: &bind_group_layout,
-			entries: &[wgpu::BindGroupEntry {
+			entries: &[BindGroupEntry {
 				binding: 0,
 				resource: buffer.as_entire_binding(),
 			}],
