@@ -1,9 +1,8 @@
 use crate::transition::TransitionProgress;
-use csscolorparser::Color;
 use wgpu::{
 	BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry,
 	BindingType, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferSize,
-	BufferUsages, Queue, ShaderStages,
+	BufferUsages, Device, Queue, ShaderStages,
 };
 
 #[repr(C)]
@@ -26,7 +25,7 @@ impl PerFrameDataUniform {
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
-		bg_color: Color,
+		bg_color: wgpaper_config::Color,
 	) -> Self {
 		Self {
 			virtual_screen_size: unsafe { std::mem::transmute(global_screen_size) },
@@ -64,6 +63,34 @@ fn write_per_frame_data(data: &PerFrameDataUniform, queue: &Queue, buffer: &Buff
 	queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 }
 
+pub struct PerFrameUniformManagerCreator<'a> {
+	device: &'a Device,
+	bind_group_layout: BindGroupLayout,
+}
+
+impl<'a> PerFrameUniformManagerCreator<'a> {
+	pub fn new(device: &'a Device) -> Self {
+		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			entries: &[BindGroupLayoutEntry {
+				binding: 0,
+				visibility: ShaderStages::FRAGMENT,
+				ty: BindingType::Buffer {
+					ty: BufferBindingType::Uniform,
+					has_dynamic_offset: false,
+					min_binding_size: BufferSize::new(256),
+				},
+				count: None,
+			}],
+			label: Some("per_frame_data_bind_group_layout"),
+		});
+
+		Self {
+			device,
+			bind_group_layout,
+		}
+	}
+}
+
 pub struct PerFrameUniformManager {
 	data: PerFrameDataUniform,
 	buffer: Buffer,
@@ -75,7 +102,7 @@ impl PerFrameUniformManager {
 		device: &wgpu::Device,
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
-		bg_color: Color,
+		bg_color: wgpaper_config::Color,
 	) -> (Self, BindGroupLayout) {
 		let buffer = device.create_buffer(&BufferDescriptor {
 			label: Some("per_frame_data_uniform_buffer"),

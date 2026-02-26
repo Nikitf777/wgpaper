@@ -1,3 +1,4 @@
+pub(super) mod wgpu_device_manager;
 pub mod wgpu_renderer;
 pub(super) mod wgpu_selector;
 pub(super) mod wgpu_shaders;
