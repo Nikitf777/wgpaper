@@ -1,0 +1,23 @@
+[env]
+RUST_LOG = 'info'
+
+[tasks.ver]
+run = 'cargo --version'
+
+[tasks.build]
+run = 'cargo build'
+
+[tasks.rbuild]
+run = 'cargo build --release'
+
+[tasks.test]
+run = 'cargo test'
+
+[tasks.rtest]
+run = 'cargo test --release'
+
+[tasks.daemon]
+run = 'cargo run --bin wgpaper-daemon-http'
+
+[tasks.rdaemon]
+run = 'cargo run --bin wgpaper-daemon-http --release'
