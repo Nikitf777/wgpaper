@@ -1,7 +1,13 @@
 use crate::{
 	app::{SctkState, core::WallpaperState},
 	image_wrapper::ImageWrapper,
-	renderer::{Renderer, RendererOptions, wgpu::wgpu_renderer::WgpuRenderer},
+	renderer::{
+		RendererOptions,
+		wgpu::{
+			wgpu_device_manager::RenderManager,
+			wgpu_surface::SurfaceRenderer,
+		},
+	},
 	transition::TransitionProgress,
 };
 use anyhow::{Context, Ok};
@@ -25,7 +31,7 @@ use wayland_client::{
 pub struct OutputStateEntry {
 	output: WlOutput,
 	layer: LayerSurface,
-	renderer: Option<WgpuRenderer>,
+	renderer: Option<SurfaceRenderer>,
 }
 
 impl OutputStateEntry {
@@ -61,11 +67,12 @@ impl OutputStateEntry {
 
 	pub fn init_renderer(
 		&mut self,
+		render_manager: &mut RenderManager,
 		conn: &Connection,
 		size: (u32, u32),
 		options: &RendererOptions,
 	) -> anyhow::Result<()> {
-		let renderer = WgpuRenderer::new(conn, &self.layer, size, options)?;
+		let renderer = render_manager.create_surface(conn, &self.layer, size, options)?;
 		self.renderer = Some(renderer);
 		Ok(())
 	}
@@ -239,6 +246,7 @@ impl OutputManager {
 
 	pub fn handle_configure(
 		&mut self,
+		render_manager: &mut RenderManager,
 		conn: &Connection,
 		qh: &QueueHandle<SctkState>,
 		layer: &LayerSurface,
@@ -248,6 +256,7 @@ impl OutputManager {
 		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
 			output
 				.init_renderer(
+					render_manager,
 					conn,
 					configure.new_size,
 					&RendererOptions {

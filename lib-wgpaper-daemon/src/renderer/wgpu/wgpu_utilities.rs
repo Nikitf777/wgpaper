@@ -38,24 +38,24 @@ pub fn create_surface<'a>(
 
 pub fn get_address_mode_and_bg_color(
 	scaling_mode: &ScalingMode,
-) -> (AddressMode, csscolorparser::Color) {
+) -> (AddressMode, wgpaper_config::Color) {
 	match scaling_mode {
 		ScalingMode::Fit { background } | ScalingMode::Center { background } => {
 			if background == &Background::Repeat {
-				(AddressMode::Repeat, csscolorparser::Color::default())
+				(AddressMode::Repeat, wgpaper_config::Color::default())
 			} else {
 				(
 					AddressMode::MirrorRepeat,
 					if let Background::CssColor(color) = background {
 						color.clone()
 					} else {
-						csscolorparser::Color::default()
+						wgpaper_config::Color::default()
 					},
 				)
 			}
 		}
 		ScalingMode::Stretch | ScalingMode::Cover => {
-			(AddressMode::MirrorRepeat, csscolorparser::Color::default())
+			(AddressMode::MirrorRepeat, wgpaper_config::Color::default())
 		}
 	}
 }

@@ -79,7 +79,7 @@ impl WgpuSelector {
 	}
 
 	/// Check if adapter matches all specified criteria
-	fn matches(&self, adapter: &Adapter) -> bool {
+	pub fn matches(&self, adapter: &Adapter) -> bool {
 		let info = adapter.get_info();
 
 		// Name filter (case-insensitive substring)
