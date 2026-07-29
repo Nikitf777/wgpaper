@@ -58,6 +58,7 @@ pub struct GpuDevice {
 	pub mirror_repeat_sampler: Sampler,
 	pub per_frame_bind_group_layout: BindGroupLayout,
 	texture_scalers: RefCell<HashMap<ScalingModeFlat, WgpuTextureScaler>>,
+	texture_scaler_bind_group_layout: BindGroupLayout,
 }
 
 impl GpuDevice {
@@ -86,6 +87,8 @@ impl GpuDevice {
 
 		let per_frame_bind_group_layout = per_frame_bind_group_layout(&device);
 
+		let texture_scaler_bind_group_layout = WgpuTextureScaler::create_bind_group_layout(&device);
+
 		Ok(Self {
 			adapter,
 			device,
@@ -95,6 +98,7 @@ impl GpuDevice {
 			mirror_repeat_sampler,
 			per_frame_bind_group_layout,
 			texture_scalers: RefCell::new(HashMap::new()),
+			texture_scaler_bind_group_layout,
 		})
 	}
 
@@ -142,6 +146,7 @@ impl GpuDevice {
 		let scaler = cache.entry(flat).or_insert_with(|| {
 			WgpuTextureScaler::new(
 				&self.device,
+				&self.texture_scaler_bind_group_layout,
 				&self.per_frame_bind_group_layout,
 				&self.vertex_shader,
 				scaling_mode.clone(),
@@ -150,6 +155,7 @@ impl GpuDevice {
 		});
 		scaler.scale(
 			&self.device,
+			&self.texture_scaler_bind_group_layout,
 			queue,
 			sampler,
 			src_view,
