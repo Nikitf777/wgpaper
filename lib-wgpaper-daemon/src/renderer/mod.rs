@@ -1,6 +1,4 @@
-use crate::{image_wrapper::ImageWrapper, transition::TransitionProgress};
-use smithay_client_toolkit::shell::wlr_layer::LayerSurface;
-use wayland_client::Connection;
+use crate::image_wrapper::ImageWrapper;
 use wgpaper_config::ScalingMode;
 
 pub mod wgpu;
@@ -10,27 +8,6 @@ pub struct RendererOptions<'a> {
 	pub shader_source: Option<&'a str>,
 	pub initial_image: Option<&'a ImageWrapper>,
 	pub scaling_mode: &'a ScalingMode,
-}
-
-pub trait Renderer {
-	fn new(
-		conn: &Connection,
-		layer_surface: &LayerSurface,
-		size: (u32, u32),
-		options: &RendererOptions,
-	) -> anyhow::Result<Self>
-	where
-		Self: Sized;
-
-	fn render(&mut self) -> anyhow::Result<()>;
-
-	fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()>;
-
-	fn get_transition_progress(&self) -> TransitionProgress;
-
-	fn set_transition_progress(&mut self, progress: TransitionProgress);
-
-	fn set_next_image(&mut self, image: &ImageWrapper);
 }
 
 #[derive(Debug, Clone)]
