@@ -2,6 +2,7 @@ use crate::{
 	LaunchOptions,
 	app::{core::WallpaperState, output::OutputManager},
 	image_wrapper::ImageWrapper,
+	renderer::wgpu::wgpu_device_manager::RenderManager,
 	transition::ActiveTransition,
 };
 use anyhow::Context;
@@ -35,6 +36,7 @@ pub struct SctkState {
 	compositor_state: CompositorState,
 	layer_shell: LayerShell,
 	output_manager: OutputManager,
+	render_manager: RenderManager,
 	qh: QueueHandle<SctkState>,
 	pub exit: bool,
 
@@ -63,6 +65,7 @@ impl SctkState {
 			compositor_state,
 			layer_shell,
 			output_manager: OutputManager::new(output_state),
+			render_manager: RenderManager::new(),
 			qh,
 			exit: false,
 
@@ -167,8 +170,14 @@ impl LayerShellHandler for SctkState {
 		configure: LayerSurfaceConfigure,
 		_serial: u32,
 	) {
-		self.output_manager
-			.handle_configure(conn, qh, layer, &configure, &self.wallpaper_state);
+		self.output_manager.handle_configure(
+			&mut self.render_manager,
+			conn,
+			qh,
+			layer,
+			&configure,
+			&self.wallpaper_state,
+		);
 	}
 }
 

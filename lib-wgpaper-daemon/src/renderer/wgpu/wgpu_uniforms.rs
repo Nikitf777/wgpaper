@@ -1,9 +1,8 @@
 use crate::transition::TransitionProgress;
-use csscolorparser::Color;
 use wgpu::{
 	BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry,
 	BindingType, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferSize,
-	BufferUsages, Queue, ShaderStages,
+	BufferUsages, Device, Queue, ShaderStages,
 };
 
 #[repr(C)]
@@ -26,7 +25,7 @@ impl PerFrameDataUniform {
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
-		bg_color: Color,
+		bg_color: wgpaper_config::Color,
 	) -> Self {
 		Self {
 			virtual_screen_size: unsafe { std::mem::transmute(global_screen_size) },
@@ -64,6 +63,23 @@ fn write_per_frame_data(data: &PerFrameDataUniform, queue: &Queue, buffer: &Buff
 	queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
 }
 
+/// Create the bind-group layout for per-frame uniforms (no device reference captured).
+pub fn per_frame_bind_group_layout(device: &Device) -> BindGroupLayout {
+	device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+		entries: &[BindGroupLayoutEntry {
+			binding: 0,
+			visibility: ShaderStages::FRAGMENT,
+			ty: BindingType::Buffer {
+				ty: BufferBindingType::Uniform,
+				has_dynamic_offset: false,
+				min_binding_size: BufferSize::new(256),
+			},
+			count: None,
+		}],
+		label: Some("per_frame_data_bind_group_layout"),
+	})
+}
+
 pub struct PerFrameUniformManager {
 	data: PerFrameDataUniform,
 	buffer: Buffer,
@@ -71,11 +87,16 @@ pub struct PerFrameUniformManager {
 }
 
 impl PerFrameUniformManager {
+	/// Create a `PerFrameUniformManager` and return it together with the
+	/// newly created bind-group layout.
+	///
+	/// Prefer [`with_layout`](Self::with_layout) when the layout is already
+	/// available (e.g. from a shared device-level cache).
 	pub fn new(
 		device: &wgpu::Device,
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
-		bg_color: Color,
+		bg_color: wgpaper_config::Color,
 	) -> (Self, BindGroupLayout) {
 		let buffer = device.create_buffer(&BufferDescriptor {
 			label: Some("per_frame_data_uniform_buffer"),
@@ -122,6 +143,47 @@ impl PerFrameUniformManager {
 			},
 			bind_group_layout,
 		)
+	}
+
+	/// Create a `PerFrameUniformManager` reusing an existing layout.
+	///
+	/// This avoids creating a duplicate bind-group layout when the layout is
+	/// already shared at the device level.
+	pub fn with_layout(
+		device: &wgpu::Device,
+		bind_group_layout: &BindGroupLayout,
+		screen_size: (f32, f32),
+		texture_size: (f32, f32),
+		bg_color: wgpaper_config::Color,
+	) -> Self {
+		let buffer = device.create_buffer(&BufferDescriptor {
+			label: Some("per_frame_data_uniform_buffer"),
+			size: std::mem::size_of::<PerFrameDataUniform>() as BufferAddress,
+			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		});
+		let data = PerFrameDataUniform::new(
+			(screen_size.0 as f32, screen_size.1 as f32),
+			(screen_size.0 as f32, screen_size.1 as f32),
+			(texture_size.0 as f32, texture_size.1 as f32),
+			TransitionProgress::reset(),
+			bg_color,
+		);
+
+		let bind_group = device.create_bind_group(&BindGroupDescriptor {
+			layout: bind_group_layout,
+			entries: &[BindGroupEntry {
+				binding: 0,
+				resource: buffer.as_entire_binding(),
+			}],
+			label: Some("per_frame_data_bind_group"),
+		});
+
+		Self {
+			data,
+			buffer,
+			bind_group,
+		}
 	}
 
 	pub fn write_data(&self, queue: &Queue) {
