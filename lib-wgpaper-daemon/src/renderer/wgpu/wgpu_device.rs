@@ -1,14 +1,13 @@
 use anyhow::Context;
 use pollster::FutureExt;
 use wgpaper_config::ScalingMode;
-use wgpu::{
-	Adapter, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule,
-};
+use wgpu::{Adapter, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule};
 
 use crate::renderer::{
 	self,
 	wgpu::{
 		wgpu_selector::{self, WgpuSelector},
+		wgpu_texture_scaler::WgpuTextureScaler,
 		wgpu_uniforms::per_frame_bind_group_layout,
 		wgpu_utilities,
 	},
@@ -36,11 +35,10 @@ impl GpuDevice {
 	/// all shared resources.
 	pub fn new(instance: &Instance, gpu_selector: &renderer::GpuSelector) -> anyhow::Result<Self> {
 		let wgpu_selector = WgpuSelector::from(gpu_selector.clone());
-		let adapter = pollster::block_on(wgpu_selector::select_gpu(instance, wgpu_selector))
-			.unwrap_or(pollster::block_on(wgpu_selector::select_gpu(
-				instance,
-				WgpuSelector::default(),
-			))?);
+		let adapter =
+			pollster::block_on(wgpu_selector::select_gpu(instance, wgpu_selector)).unwrap_or(
+				pollster::block_on(wgpu_selector::select_gpu(instance, WgpuSelector::default()))?,
+			);
 
 		let (device, queue) = adapter
 			.request_device(&wgpu::DeviceDescriptor::default())

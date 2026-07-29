@@ -3,10 +3,7 @@ use crate::{
 	image_wrapper::ImageWrapper,
 	renderer::{
 		RendererOptions,
-		wgpu::{
-			wgpu_device_manager::RenderManager,
-			wgpu_surface::SurfaceRenderer,
-		},
+		wgpu::{wgpu_render_manager::RenderManager, wgpu_surface::SurfaceRenderer},
 	},
 	transition::TransitionProgress,
 };

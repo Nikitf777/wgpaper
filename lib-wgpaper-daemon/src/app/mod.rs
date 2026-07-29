@@ -2,7 +2,7 @@ use crate::{
 	LaunchOptions,
 	app::{core::WallpaperState, output::OutputManager},
 	image_wrapper::ImageWrapper,
-	renderer::wgpu::wgpu_device_manager::RenderManager,
+	renderer::wgpu::wgpu_render_manager::RenderManager,
 	transition::ActiveTransition,
 };
 use anyhow::Context;
