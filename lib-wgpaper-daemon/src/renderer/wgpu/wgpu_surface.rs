@@ -14,7 +14,6 @@ use crate::{
 			wgpu_device::GpuDevice,
 			wgpu_shaders,
 			wgpu_texture::WgpuTexture,
-			wgpu_texture_scaler::WgpuTextureScaler,
 			wgpu_transition_renderer::WgpuTransitionRenderer,
 			wgpu_uniforms::PerFrameUniformManager,
 			wgpu_utilities,
@@ -26,9 +25,11 @@ use crate::{
 /// Per-surface rendering state.
 ///
 /// Each monitor (output) gets one `SurfaceRenderer`. It owns the wgpu
-/// surface, its configuration, a texture scaler (dedicated to this surface),
-/// the scaled wallpaper texture, a triple-buffer of off-screen textures for
-/// transitions, and the transition renderer.
+/// surface, its configuration, the scaled wallpaper texture, a triple-buffer
+/// of off-screen textures for transitions, and the transition renderer.
+///
+/// Texture scalers are shared across all surfaces on the same device via
+/// [`GpuDevice::scale_texture`].
 pub struct SurfaceRenderer {
 	device: Rc<GpuDevice>,
 	surface: Surface<'static>,
@@ -37,7 +38,6 @@ pub struct SurfaceRenderer {
 	surface_format: TextureFormat,
 	scaling_mode: ScalingMode,
 
-	texture_scaler: WgpuTextureScaler,
 	scaled_texture: WgpuTexture,
 	offscreen_textures: [WgpuTexture; 3],
 	display_texture_idx: usize,
@@ -112,15 +112,6 @@ impl SurfaceRenderer {
 		per_frame_uniform_manager
 			.update_transition_progress(TransitionProgress::finished());
 
-		// ── texture scaler ───────────────────────────────────────────
-		let texture_scaler = WgpuTextureScaler::new(
-			&device.device,
-			&device.per_frame_bind_group_layout,
-			&device.vertex_shader,
-			scaling_mode.clone(),
-			surface_format,
-		);
-
 		// ── scaled texture ───────────────────────────────────────────
 		let scaled_texture = WgpuTexture::from_image(
 			&device.device,
@@ -131,8 +122,9 @@ impl SurfaceRenderer {
 		)?;
 
 		// Scale the initial image into the scaled texture.
-		texture_scaler.scale(
-			&device.device,
+		device.scale_texture(
+			&scaling_mode,
+			surface_format,
 			&device.queue,
 			&sampler,
 			&initial_texture.view,
@@ -176,7 +168,6 @@ impl SurfaceRenderer {
 			sampler,
 			surface_format,
 			scaling_mode,
-			texture_scaler,
 			scaled_texture,
 			offscreen_textures,
 			display_texture_idx,
@@ -279,8 +270,9 @@ impl SurfaceRenderer {
 
 		self.increment_idx();
 
-		self.texture_scaler.scale(
-			&self.device.device,
+		self.device.scale_texture(
+			&self.scaling_mode,
+			self.surface_format,
 			&self.device.queue,
 			&self.sampler,
 			&next_texture.view,

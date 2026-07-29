@@ -1,7 +1,12 @@
+use std::{cell::RefCell, collections::HashMap};
+
 use anyhow::Context;
 use pollster::FutureExt;
 use wgpaper_config::ScalingMode;
-use wgpu::{Adapter, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule};
+use wgpu::{
+	Adapter, BindGroup, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule,
+	TextureFormat, TextureView,
+};
 
 use crate::renderer::{
 	self,
@@ -13,6 +18,28 @@ use crate::renderer::{
 	},
 };
 
+/// Flattened scaling mode that discards background variants.
+/// There are at most 6 distinct pipelines (stretch, fit, cover, center)
+/// regardless of the background-fill variant, so we use this as the cache key.
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+enum ScalingModeFlat {
+	Stretch,
+	Fit,
+	Cover,
+	Center,
+}
+
+impl From<&ScalingMode> for ScalingModeFlat {
+	fn from(value: &ScalingMode) -> Self {
+		match value {
+			ScalingMode::Stretch => ScalingModeFlat::Stretch,
+			ScalingMode::Fit { background: _ } => ScalingModeFlat::Fit,
+			ScalingMode::Cover => ScalingModeFlat::Cover,
+			ScalingMode::Center { background: _ } => ScalingModeFlat::Center,
+		}
+	}
+}
+
 /// Wraps a single GPU adapter + device with all the resources that are
 /// shared across all surfaces using this GPU.
 ///
@@ -20,6 +47,8 @@ use crate::renderer::{
 /// - The vertex shader (used by all pipelines)
 /// - Two samplers (repeat / mirror-repeat) for texture wrapping
 /// - The per-frame uniform bind-group layout (needed when building pipelines)
+/// - A lazily-populated cache of [`WgpuTextureScaler`]s (one per geometric
+///   scaling mode, so at most 4).
 pub struct GpuDevice {
 	pub adapter: Adapter,
 	pub device: Device,
@@ -28,6 +57,7 @@ pub struct GpuDevice {
 	pub repeat_sampler: Sampler,
 	pub mirror_repeat_sampler: Sampler,
 	pub per_frame_bind_group_layout: BindGroupLayout,
+	texture_scalers: RefCell<HashMap<ScalingModeFlat, WgpuTextureScaler>>,
 }
 
 impl GpuDevice {
@@ -64,6 +94,7 @@ impl GpuDevice {
 			repeat_sampler,
 			mirror_repeat_sampler,
 			per_frame_bind_group_layout,
+			texture_scalers: RefCell::new(HashMap::new()),
 		})
 	}
 
@@ -89,5 +120,41 @@ impl GpuDevice {
 			}
 			_ => &self.repeat_sampler,
 		}
+	}
+
+	/// Scale `src_view` into `dst_view` using the scaler for `scaling_mode`.
+	///
+	/// The scaler pipeline is created on first use and then cached, so all
+	/// surfaces sharing this device reuse the same pipeline for the same
+	/// geometric scaling mode.
+	pub fn scale_texture(
+		&self,
+		scaling_mode: &ScalingMode,
+		format: TextureFormat,
+		queue: &Queue,
+		sampler: &Sampler,
+		src_view: &TextureView,
+		dst_view: &TextureView,
+		per_frame_data_bind_group: &BindGroup,
+	) {
+		let flat = ScalingModeFlat::from(scaling_mode);
+		let mut cache = self.texture_scalers.borrow_mut();
+		let scaler = cache.entry(flat).or_insert_with(|| {
+			WgpuTextureScaler::new(
+				&self.device,
+				&self.per_frame_bind_group_layout,
+				&self.vertex_shader,
+				scaling_mode.clone(),
+				format,
+			)
+		});
+		scaler.scale(
+			&self.device,
+			queue,
+			sampler,
+			src_view,
+			dst_view,
+			per_frame_data_bind_group,
+		);
 	}
 }
