@@ -76,7 +76,8 @@ impl GpuDevice {
 			.block_on()
 			.context("Failed to request device")?;
 
-		let vertex = wgpu_shaders::create_spv_module(&device, "vertex_shader", wgpu_shaders::VS_ENTRY);
+		let vertex =
+			wgpu_shaders::create_spv_module(&device, "vertex_shader", wgpu_shaders::VS_ENTRY);
 		let vertex_shader = vertex.module;
 
 		let repeat_sampler = wgpu_utilities::create_sampler(&device, wgpu::AddressMode::Repeat);

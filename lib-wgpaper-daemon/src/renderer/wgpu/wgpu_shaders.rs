@@ -27,7 +27,10 @@ pub fn create_spv_module(device: &Device, label: &str, entry_point: &'static str
 		label: Some(label),
 		source: ShaderSource::SpirV(make_spv_source()),
 	});
-	SpvShader { module, entry_point }
+	SpvShader {
+		module,
+		entry_point,
+	}
 }
 
 // ── vertex shader ─────────────────────────────────────────────────────

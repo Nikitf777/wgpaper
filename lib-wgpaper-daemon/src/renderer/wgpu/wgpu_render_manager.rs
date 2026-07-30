@@ -11,9 +11,7 @@ use crate::{
 	renderer::{
 		RendererOptions,
 		wgpu::{
-			wgpu_device::GpuDevice,
-			wgpu_selector::WgpuSelector,
-			wgpu_surface::SurfaceRenderer,
+			wgpu_device::GpuDevice, wgpu_selector::WgpuSelector, wgpu_surface::SurfaceRenderer,
 			wgpu_utilities::create_surface,
 		},
 	},
