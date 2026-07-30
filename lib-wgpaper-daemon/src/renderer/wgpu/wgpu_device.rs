@@ -12,6 +12,7 @@ use crate::renderer::{
 	self,
 	wgpu::{
 		wgpu_selector::{self, WgpuSelector},
+		wgpu_shaders,
 		wgpu_texture_scaler::WgpuTextureScaler,
 		wgpu_uniforms::per_frame_bind_group_layout,
 		wgpu_utilities,
@@ -58,7 +59,6 @@ pub struct GpuDevice {
 	pub mirror_repeat_sampler: Sampler,
 	pub per_frame_bind_group_layout: BindGroupLayout,
 	texture_scalers: RefCell<HashMap<ScalingModeFlat, WgpuTextureScaler>>,
-	texture_scaler_bind_group_layout: BindGroupLayout,
 }
 
 impl GpuDevice {
@@ -76,18 +76,14 @@ impl GpuDevice {
 			.block_on()
 			.context("Failed to request device")?;
 
-		let vertex_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("vertex_shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("shaders/vertex.wgsl").into()),
-		});
+		let vertex = wgpu_shaders::create_spv_module(&device, "vertex_shader", wgpu_shaders::VS_ENTRY);
+		let vertex_shader = vertex.module;
 
 		let repeat_sampler = wgpu_utilities::create_sampler(&device, wgpu::AddressMode::Repeat);
 		let mirror_repeat_sampler =
 			wgpu_utilities::create_sampler(&device, wgpu::AddressMode::MirrorRepeat);
 
 		let per_frame_bind_group_layout = per_frame_bind_group_layout(&device);
-
-		let texture_scaler_bind_group_layout = WgpuTextureScaler::create_bind_group_layout(&device);
 
 		Ok(Self {
 			adapter,
@@ -98,7 +94,6 @@ impl GpuDevice {
 			mirror_repeat_sampler,
 			per_frame_bind_group_layout,
 			texture_scalers: RefCell::new(HashMap::new()),
-			texture_scaler_bind_group_layout,
 		})
 	}
 
@@ -146,7 +141,6 @@ impl GpuDevice {
 		let scaler = cache.entry(flat).or_insert_with(|| {
 			WgpuTextureScaler::new(
 				&self.device,
-				&self.texture_scaler_bind_group_layout,
 				&self.per_frame_bind_group_layout,
 				&self.vertex_shader,
 				scaling_mode.clone(),
@@ -155,7 +149,6 @@ impl GpuDevice {
 		});
 		scaler.scale(
 			&self.device,
-			&self.texture_scaler_bind_group_layout,
 			queue,
 			sampler,
 			src_view,

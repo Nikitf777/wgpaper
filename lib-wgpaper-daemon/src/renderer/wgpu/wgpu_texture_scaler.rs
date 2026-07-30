@@ -8,70 +8,69 @@ use wgpu::{
 };
 
 use crate::renderer::wgpu::{
-	wgpu_shaders::create_scaling_fragment_shader,
+	wgpu_shaders::{self, create_scaling_fragment_shader},
 	wgpu_utilities::{self, begin_render_pass, create_color_attachment, create_command_encoder},
 };
 
 pub struct WgpuTextureScaler {
+	texture_bind_group_layout: BindGroupLayout,
 	pipeline: RenderPipeline,
 }
 
 impl WgpuTextureScaler {
-	pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
-		device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-			entries: &[
-				BindGroupLayoutEntry {
-					binding: 0,
-					visibility: ShaderStages::FRAGMENT,
-					ty: BindingType::Texture {
-						sample_type: TextureSampleType::Float { filterable: true },
-						view_dimension: TextureViewDimension::D2,
-						multisampled: false,
-					},
-					count: None,
-				},
-				wgpu::BindGroupLayoutEntry {
-					binding: 1,
-					visibility: ShaderStages::FRAGMENT,
-					ty: BindingType::Sampler(SamplerBindingType::Filtering),
-					count: None,
-				},
-			],
-			label: Some("scaling_bind_group_layout"),
-		})
-	}
-
 	pub fn new(
 		device: &Device,
-		texture_bind_group_layout: &BindGroupLayout,
 		per_frame_data_bind_group_layout: &BindGroupLayout,
 		vertex_shader: &ShaderModule,
 		scaling_mode: ScalingMode,
 		format: TextureFormat,
 	) -> Self {
+		let layout =
+			device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+				entries: &[
+					BindGroupLayoutEntry {
+						binding: 0,
+						visibility: ShaderStages::FRAGMENT,
+						ty: BindingType::Texture {
+							sample_type: TextureSampleType::Float { filterable: true },
+							view_dimension: TextureViewDimension::D2,
+							multisampled: false,
+						},
+						count: None,
+					},
+					wgpu::BindGroupLayoutEntry {
+						binding: 1,
+						visibility: ShaderStages::FRAGMENT,
+						ty: BindingType::Sampler(SamplerBindingType::Filtering),
+						count: None,
+					},
+				],
+				label: Some("scaling_bind_group_layout"),
+			});
+
 		let scaling_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
 			label: Some("scaling_pipeline_layout"),
 			bind_group_layouts: &[
-				&texture_bind_group_layout,
+				&layout,
 				&per_frame_data_bind_group_layout,
 			],
 			immediate_size: 0,
 		});
 
-		let fragment_shader = create_scaling_fragment_shader(&device, &scaling_mode);
+		let frag = create_scaling_fragment_shader(&device, &scaling_mode);
 
 		let scaling_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 			label: Some("scaling_pipeline"),
 			layout: Some(&scaling_pipeline_layout),
 			vertex: wgpu::VertexState {
 				module: &vertex_shader,
-				entry_point: Some("vs_main"),
+				entry_point: Some(wgpu_shaders::VS_ENTRY),
 				buffers: &[],
 				compilation_options: Default::default(),
 			},
 			fragment: Some(wgpu::FragmentState {
-				module: &fragment_shader,
-				entry_point: Some("fs_main"),
+				module: &frag.module,
+				entry_point: Some(frag.entry_point),
 				targets: &[Some(ColorTargetState {
 					format,
 					blend: Some(BlendState::REPLACE),
@@ -87,6 +86,7 @@ impl WgpuTextureScaler {
 		});
 
 		Self {
+			texture_bind_group_layout: layout,
 			pipeline: scaling_pipeline,
 		}
 	}
@@ -115,7 +115,6 @@ impl WgpuTextureScaler {
 	pub fn scale<'tex>(
 		&self,
 		device: &Device,
-		texture_bind_group_layout: &BindGroupLayout,
 		queue: &Queue,
 		sampler: &Sampler,
 		scr_view: &TextureView,
@@ -123,7 +122,7 @@ impl WgpuTextureScaler {
 		per_frame_data_bind_group: &BindGroup,
 	) {
 		let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout: texture_bind_group_layout,
+			layout: &self.texture_bind_group_layout,
 			entries: &[
 				BindGroupEntry {
 					binding: 0,

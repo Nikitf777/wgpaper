@@ -4,7 +4,10 @@ use wgpu::{
 	ShaderStages, TextureFormat, TextureSampleType, TextureView, TextureViewDimension,
 };
 
-use crate::renderer::wgpu::wgpu_utilities::{self, begin_render_pass, create_color_attachment};
+use crate::renderer::wgpu::{
+	wgpu_shaders,
+	wgpu_utilities::{self, begin_render_pass, create_color_attachment},
+};
 
 fn create_texture_bind_group(
 	device: &Device,
@@ -48,6 +51,7 @@ impl WgpuTransitionRenderer {
 		per_frame_data_bind_group_layout: &BindGroupLayout,
 		vertex_shader: &ShaderModule,
 		transition_shader: &ShaderModule,
+		fragment_entry: &str,
 		format: TextureFormat,
 	) -> Self {
 		let texture_bind_group_layout =
@@ -105,13 +109,13 @@ impl WgpuTransitionRenderer {
 			layout: Some(&pipeline_layout),
 			vertex: wgpu::VertexState {
 				module: &vertex_shader,
-				entry_point: Some("vs_main"),
+				entry_point: Some(wgpu_shaders::VS_ENTRY),
 				buffers: &[],
 				compilation_options: Default::default(),
 			},
 			fragment: Some(wgpu::FragmentState {
 				module: &transition_shader,
-				entry_point: Some("fs_main"),
+				entry_point: Some(fragment_entry),
 				targets: &[Some(wgpu::ColorTargetState {
 					format,
 					blend: Some(wgpu::BlendState::REPLACE),

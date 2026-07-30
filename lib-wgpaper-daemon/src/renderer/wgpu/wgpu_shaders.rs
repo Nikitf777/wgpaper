@@ -1,48 +1,93 @@
+use std::borrow::Cow;
+
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{Device, ShaderModule, ShaderModuleDescriptor, ShaderSource};
 
-const STRETCH_SHADER: &str = include_str!("shaders/fragment_stretch.wgsl");
-const FIT_SHADER: &str = include_str!("shaders/fragment_fit.wgsl");
-const FIT_BG_SHADER: &str = include_str!("shaders/fragment_fit_bg_color.wgsl");
-const COVER_SHADER: &str = include_str!("shaders/fragment_cover.wgsl");
-const CENTER_SHADER: &str = include_str!("shaders/fragment_center.wgsl");
-const CENTER_BG_SHADER: &str = include_str!("shaders/fragment_center_bg_color.wgsl");
+/// Compiled SPIR-V blob produced by `build.rs` using `spirv-builder`.
+static SHADER_SPV: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/wgpaper_shaders.spv"));
 
-const DEFAULT_TRANSITION_SHADER: &str = include_str!("shaders/default_transition.wgsl");
+/// Convert the raw SPIR-V bytes to `Cow<[u32]>` for use with
+/// `ShaderSource::SpirV`, handling alignment safely.
+///
+/// `include_bytes!` data may not be 4-byte-aligned, so we use
+/// `wgpu::util::make_spirv_raw` which copies if necessary.
+fn make_spv_source() -> Cow<'static, [u32]> {
+	wgpu::util::make_spirv_raw(SHADER_SPV)
+}
 
-pub fn create_scaling_fragment_shader(device: &Device, mode: &ScalingMode) -> ShaderModule {
-	let (shader, name_postfix) = match mode {
+/// Create a SPIR-V shader module + entry point name.
+pub struct SpvShader {
+	pub module: ShaderModule,
+	pub entry_point: &'static str,
+}
+
+/// Create a SPIR-V shader module for the given entry point.
+pub fn create_spv_module(device: &Device, label: &str, entry_point: &'static str) -> SpvShader {
+	let module = device.create_shader_module(ShaderModuleDescriptor {
+		label: Some(label),
+		source: ShaderSource::SpirV(make_spv_source()),
+	});
+	SpvShader { module, entry_point }
+}
+
+// ── vertex shader ─────────────────────────────────────────────────────
+
+/// Vertex shader: full-screen triangle.
+pub const VS_ENTRY: &str = "vs_main";
+
+// ── scaling fragment shaders ─────────────────────────────────────────
+
+/// Return the fragment entry-point and a human-readable label for a scaling mode.
+pub fn scaling_shader_info(mode: &ScalingMode) -> (&'static str, &'static str) {
+	match mode {
 		ScalingMode::Fit { background } => {
-			if matches!(background, Background::AutoColor)
-				|| matches!(background, Background::CssColor(_))
-			{
-				(FIT_BG_SHADER, "fit_bg_color")
+			if matches!(background, Background::AutoColor | Background::CssColor(_)) {
+				("fs_fit_bg", "scaling_fragment_shader_fit_bg_color")
 			} else {
-				(FIT_SHADER, "fit")
+				("fs_fit", "scaling_fragment_shader_fit")
 			}
 		}
 		ScalingMode::Center { background } => {
-			if matches!(background, Background::AutoColor)
-				|| matches!(background, Background::CssColor(_))
-			{
-				(CENTER_BG_SHADER, "center_bg_color")
+			if matches!(background, Background::AutoColor | Background::CssColor(_)) {
+				("fs_center_bg", "scaling_fragment_shader_center_bg_color")
 			} else {
-				(CENTER_SHADER, "center")
+				("fs_center", "scaling_fragment_shader_center")
 			}
 		}
-		ScalingMode::Stretch => (STRETCH_SHADER, "stretch"),
-		ScalingMode::Cover => (COVER_SHADER, "cover"),
-	};
-
-	device.create_shader_module(ShaderModuleDescriptor {
-		label: Some(&format!("scaling_fragment_shader_{}", name_postfix)),
-		source: ShaderSource::Wgsl(shader.into()),
-	})
+		ScalingMode::Stretch => ("fs_stretch", "scaling_fragment_shader_stretch"),
+		ScalingMode::Cover => ("fs_cover", "scaling_fragment_shader_cover"),
+	}
 }
 
-pub fn create_animation_shader(device: &Device, shader_source: Option<&str>) -> ShaderModule {
-	device.create_shader_module(wgpu::ShaderModuleDescriptor {
-		label: Some("animation_shader"),
-		source: wgpu::ShaderSource::Wgsl(shader_source.unwrap_or(DEFAULT_TRANSITION_SHADER).into()),
-	})
+/// Create a scaling fragment shader module.  Returns the module and the
+/// entry point name that should be used when building the pipeline.
+pub fn create_scaling_fragment_shader(device: &Device, mode: &ScalingMode) -> SpvShader {
+	let (entry_point, label) = scaling_shader_info(mode);
+	create_spv_module(device, label, entry_point)
+}
+
+// ── transition fragment shader ───────────────────────────────────────
+
+/// Entry point for the default cross-fade transition.
+pub const DEFAULT_TRANSITION_ENTRY: &str = "fs_default_transition";
+
+/// Create the transition (animation) fragment shader module.
+///
+/// The compiled SPIR-V blob contains `fs_default_transition`.  If
+/// `shader_source` is provided it is parsed as WGSL (for user-provided
+/// custom shaders).
+pub fn create_animation_shader(device: &Device, shader_source: Option<&str>) -> SpvShader {
+	match shader_source {
+		Some(src) => {
+			let module = device.create_shader_module(ShaderModuleDescriptor {
+				label: Some("custom_animation_shader"),
+				source: ShaderSource::Wgsl(Cow::Owned(src.to_string().into())),
+			});
+			SpvShader {
+				module,
+				entry_point: "fs_main",
+			}
+		}
+		None => create_spv_module(device, "animation_shader", DEFAULT_TRANSITION_ENTRY),
+	}
 }

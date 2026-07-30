@@ -157,7 +157,8 @@ impl SurfaceRenderer {
 			&offscreen_textures[display_texture_idx].view, // next = first frame
 			&device.per_frame_bind_group_layout,
 			&device.vertex_shader,
-			&transition_shader,
+			&transition_shader.module,
+			transition_shader.entry_point,
 			surface_format,
 		);
 

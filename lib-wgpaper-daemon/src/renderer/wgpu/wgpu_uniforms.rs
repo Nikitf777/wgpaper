@@ -14,9 +14,15 @@ struct PerFrameDataUniform {
 	virtual_screen_aspect: f32,
 	screen_aspect: f32,
 	texture_aspect: f32,
-	progress: [f32; 2],
+	// Two separate f32s (not [f32; 2] / Vec2) so this struct matches
+	// the WGSL / SPIR-V ABI at the byte level without alignment gaps.
+	progress_bezier: f32,
+	progress_linear: f32,
+	// Explicit padding: WGSL var<uniform> requires vec4 align 16,
+	// so bg_color must start at offset 48, not 44.
+	_pad_to_bg_color: [u8; 4],
 	bg_color: [f32; 4],
-	_padding: [u8; 212],
+	_padding: [u32; 53],
 }
 
 impl PerFrameDataUniform {
@@ -28,34 +34,40 @@ impl PerFrameDataUniform {
 		bg_color: wgpaper_config::Color,
 	) -> Self {
 		Self {
-			virtual_screen_size: unsafe { std::mem::transmute(global_screen_size) },
-			screen_size: unsafe { std::mem::transmute(screen_size) },
-			texture_size: unsafe { std::mem::transmute(texture_size) },
+			virtual_screen_size: [global_screen_size.0, global_screen_size.1],
+			screen_size: [screen_size.0, screen_size.1],
+			texture_size: [texture_size.0, texture_size.1],
 			virtual_screen_aspect: global_screen_size.0 / global_screen_size.1,
 			screen_aspect: screen_size.0 / screen_size.1,
 			texture_aspect: texture_size.0 / texture_size.1,
-			progress: unsafe { std::mem::transmute(progress) },
+			progress_bezier: progress.progress_bezier,
+			progress_linear: progress.progress_linear,
+			_pad_to_bg_color: [0u8; 4],
 			bg_color: unsafe { std::mem::transmute(bg_color) },
-			_padding: [0u8; 212],
+			_padding: [0u32; 53],
 		}
 	}
 
 	fn transition_progress(&self) -> TransitionProgress {
-		unsafe { std::mem::transmute(self.progress) }
+		TransitionProgress {
+			progress_bezier: self.progress_bezier,
+			progress_linear: self.progress_linear,
+		}
 	}
 
 	fn update_screen_size(&mut self, new_size: (f32, f32)) {
-		self.screen_size = unsafe { std::mem::transmute(new_size) };
+		self.screen_size = [new_size.0, new_size.1];
 		self.screen_aspect = new_size.0 / new_size.1;
 	}
 
 	fn update_texture_size(&mut self, new_size: (f32, f32)) {
-		self.texture_size = unsafe { std::mem::transmute(new_size) };
+		self.texture_size = [new_size.0, new_size.1];
 		self.texture_aspect = new_size.0 / new_size.1;
 	}
 
 	fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
-		self.progress = unsafe { std::mem::transmute(new_progress) };
+		self.progress_bezier = new_progress.progress_bezier;
+		self.progress_linear = new_progress.progress_linear;
 	}
 }
 
