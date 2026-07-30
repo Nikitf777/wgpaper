@@ -31,7 +31,7 @@ impl PerFrameDataUniform {
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
 		progress: TransitionProgress,
-		bg_color: wgpaper_config::Color,
+		bg_color: csscolorparser::Color,
 	) -> Self {
 		Self {
 			virtual_screen_size: [global_screen_size.0, global_screen_size.1],
@@ -108,7 +108,7 @@ impl PerFrameUniformManager {
 		device: &wgpu::Device,
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
-		bg_color: wgpaper_config::Color,
+		bg_color: csscolorparser::Color,
 	) -> (Self, BindGroupLayout) {
 		let buffer = device.create_buffer(&BufferDescriptor {
 			label: Some("per_frame_data_uniform_buffer"),
@@ -166,7 +166,7 @@ impl PerFrameUniformManager {
 		bind_group_layout: &BindGroupLayout,
 		screen_size: (f32, f32),
 		texture_size: (f32, f32),
-		bg_color: wgpaper_config::Color,
+		bg_color: csscolorparser::Color,
 	) -> Self {
 		let buffer = device.create_buffer(&BufferDescriptor {
 			label: Some("per_frame_data_uniform_buffer"),

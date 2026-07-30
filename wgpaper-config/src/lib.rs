@@ -4,71 +4,19 @@ use serde::{Deserialize, Deserializer};
 use shellexpand::tilde;
 use std::{
 	env, fs,
-	hash::{Hash, Hasher},
 	path::{Path, PathBuf},
 };
 
-#[derive(Clone, PartialEq)]
-pub struct Color {
-	r: f32,
-	g: f32,
-	b: f32,
-	a: f32,
-}
-
-impl Color {
-	const fn as_u32(&self) -> u32 {
-		let r = (self.r * 255.0).round() as u32;
-		let g = (self.g * 255.0).round() as u32;
-		let b = (self.b * 255.0).round() as u32;
-		let a = (self.a * 255.0).round() as u32;
-
-		(a << 24) | (b << 16) | (g << 8) | r
-	}
-}
-
-impl<'de> Deserialize<'de> for Color {
-	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-		csscolorparser::Color::deserialize(deserializer).map(|c| Color::from(c))
-	}
-}
-
-impl Default for Color {
-	fn default() -> Self {
-		csscolorparser::Color::default().into()
-	}
-}
-
-impl From<csscolorparser::Color> for Color {
-	fn from(value: csscolorparser::Color) -> Self {
-		unsafe { std::mem::transmute(value) }
-	}
-}
-
-impl From<[u8; 3]> for Color {
-	fn from(value: [u8; 3]) -> Self {
-		csscolorparser::Color::from(value).into()
-	}
-}
-
-impl Eq for Color {}
-
-impl Hash for Color {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.as_u32().hash(state);
-	}
-}
-
-#[derive(Clone, Deserialize, PartialEq, Hash, Eq)]
+#[derive(Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Background {
 	AutoColor,
-	CssColor(Color),
+	CssColor(csscolorparser::Color),
 	Repeat,
 	MirrorRepeat,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Default, strum_macros::Display, Hash, Eq)]
+#[derive(Deserialize, Clone, PartialEq, Default, strum_macros::Display)]
 #[serde(rename_all = "snake_case")]
 pub enum ScalingMode {
 	Stretch,
