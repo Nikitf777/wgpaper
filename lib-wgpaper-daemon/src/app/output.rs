@@ -94,15 +94,19 @@ impl OutputStateEntry {
 		}
 	}
 
-	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
+	pub fn start_transition(&mut self, image: &ImageWrapper) {
 		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_transition_progress(progress);
+			renderer.set_next_image_size(image);
+			renderer.set_transition_progress(TransitionProgress::reset());
+			renderer.write_data();
+			renderer.set_next_image(image);
 		}
 	}
 
-	pub fn set_next_image(&mut self, image: &ImageWrapper) {
+	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
 		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_next_image(image);
+			renderer.set_transition_progress(progress);
+			renderer.write_data();
 		}
 	}
 }
@@ -175,8 +179,7 @@ impl OutputManager {
 		image: &ImageWrapper,
 	) -> anyhow::Result<()> {
 		for (surface, output) in self.outputs.iter_mut() {
-			output.set_next_image(image);
-			output.set_transition_progress(TransitionProgress::reset());
+			output.start_transition(image);
 			surface.frame(qh, surface.clone());
 			output.commit();
 		}

@@ -11,12 +11,9 @@ use crate::{
 	renderer::{
 		RendererOptions,
 		wgpu::{
-			wgpu_device::GpuDevice,
-			wgpu_shaders,
-			wgpu_texture::WgpuTexture,
+			wgpu_device::GpuDevice, wgpu_shaders, wgpu_texture::WgpuTexture,
 			wgpu_transition_renderer::WgpuTransitionRenderer,
-			wgpu_uniforms::PerFrameUniformManager,
-			wgpu_utilities,
+			wgpu_uniforms::PerFrameUniformManager, wgpu_utilities,
 		},
 	},
 	transition::TransitionProgress,
@@ -96,8 +93,7 @@ impl SurfaceRenderer {
 		)?;
 
 		// ── sampler ──────────────────────────────────────────────────
-		let (address_mode, bg_color) =
-			wgpu_utilities::get_address_mode_and_bg_color(&scaling_mode);
+		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(&scaling_mode);
 		let sampler = wgpu_utilities::create_sampler(&device.device, address_mode);
 
 		// ── per-frame uniforms ───────────────────────────────────────
@@ -109,8 +105,7 @@ impl SurfaceRenderer {
 			bg_color,
 		);
 		per_frame_uniform_manager.write_data(&device.queue);
-		per_frame_uniform_manager
-			.update_transition_progress(TransitionProgress::finished());
+		per_frame_uniform_manager.update_transition_progress(TransitionProgress::finished());
 
 		// ── scaled texture ───────────────────────────────────────────
 		let scaled_texture = WgpuTexture::from_image(
@@ -192,8 +187,7 @@ impl SurfaceRenderer {
 		let surface_texture = match self.surface.get_current_texture() {
 			Ok(frame) => frame,
 			Err(SurfaceError::Outdated | SurfaceError::Lost) => {
-				self.surface
-					.configure(&self.device.device, &self.config);
+				self.surface.configure(&self.device.device, &self.config);
 				return Ok(());
 			}
 			Err(e) => return Err(anyhow::anyhow!("Failed to acquire next texture: {e}")),
@@ -242,8 +236,7 @@ impl SurfaceRenderer {
 
 		self.config.width = size.0;
 		self.config.height = size.1;
-		self.surface
-			.configure(&self.device.device, &self.config);
+		self.surface.configure(&self.device.device, &self.config);
 		self.per_frame_uniform_manager
 			.update_screen_size((size.0 as f32, size.1 as f32));
 		Ok(())
@@ -254,6 +247,27 @@ impl SurfaceRenderer {
 	/// Loads the image into a GPU texture, scales it, and updates the
 	/// transition renderer to blend between the current display texture
 	/// and the newly scaled wallpaper.
+	pub fn set_next_image_size(&mut self, image: &ImageWrapper) {
+		self.per_frame_uniform_manager
+			.update_texture_size((image.width() as f32, image.height() as f32));
+	}
+
+	/// Return the current transition progress.
+	pub fn get_transition_progress(&self) -> TransitionProgress {
+		self.per_frame_uniform_manager.transition_progress()
+	}
+
+	/// Update the transition progress and write it to the GPU buffer.
+	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
+		self.per_frame_uniform_manager
+			.update_transition_progress(progress);
+	}
+
+	pub fn write_data(&mut self) {
+		self.per_frame_uniform_manager
+			.write_data(&self.device.queue);
+	}
+
 	pub fn set_next_image(&mut self, image: &ImageWrapper) {
 		let next_texture = WgpuTexture::from_image(
 			&self.device.device,
@@ -263,11 +277,6 @@ impl SurfaceRenderer {
 			self.surface_format,
 		)
 		.unwrap();
-
-		self.per_frame_uniform_manager.update_texture_size((
-			next_texture.texture.width() as f32,
-			next_texture.texture.height() as f32,
-		));
 
 		self.increment_idx();
 
@@ -287,18 +296,5 @@ impl SurfaceRenderer {
 			&self.scaled_texture.view,
 			&self.sampler,
 		);
-	}
-
-	/// Return the current transition progress.
-	pub fn get_transition_progress(&self) -> TransitionProgress {
-		self.per_frame_uniform_manager.transition_progress()
-	}
-
-	/// Update the transition progress and write it to the GPU buffer.
-	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
-		self.per_frame_uniform_manager
-			.update_transition_progress(progress);
-		self.per_frame_uniform_manager
-			.write_data(&self.device.queue);
 	}
 }
