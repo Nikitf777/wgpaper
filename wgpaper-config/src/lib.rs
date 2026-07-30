@@ -8,7 +8,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-#[derive(Clone, Deserialize, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Color {
 	r: f32,
 	g: f32,
@@ -24,6 +24,12 @@ impl Color {
 		let a = (self.a * 255.0).round() as u32;
 
 		(a << 24) | (b << 16) | (g << 8) | r
+	}
+}
+
+impl<'de> Deserialize<'de> for Color {
+	fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+		csscolorparser::Color::deserialize(deserializer).map(|c| Color::from(c))
 	}
 }
 
