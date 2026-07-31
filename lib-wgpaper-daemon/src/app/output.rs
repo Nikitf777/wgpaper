@@ -24,6 +24,7 @@ use wayland_client::{
 	Connection, QueueHandle,
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
+use wgpaper_config::GpuConfig;
 
 pub struct OutputStateEntry {
 	output: WlOutput,
@@ -150,15 +151,17 @@ fn calculate_global_bounds(output_state: &OutputState) -> anyhow::Result<Bounds>
 }
 
 pub struct OutputManager {
-	outputs: HashMap<WlSurface, OutputStateEntry>,
+	gpu_config: GpuConfig,
 	output_state: OutputState,
+	outputs: HashMap<WlSurface, OutputStateEntry>,
 }
 
 impl OutputManager {
-	pub fn new(output_state: OutputState) -> Self {
+	pub fn new(gpu_config: GpuConfig, output_state: OutputState) -> Self {
 		Self {
-			outputs: HashMap::default(),
+			gpu_config,
 			output_state,
+			outputs: HashMap::default(),
 		}
 	}
 
@@ -254,13 +257,26 @@ impl OutputManager {
 		wallpaper_state: &WallpaperState,
 	) {
 		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
+			let gpu_selector_default = wgpaper_config::GpuSelector::default();
+			let gpu_selector = match &self.gpu_config {
+				GpuConfig::Global(selector) => selector,
+				GpuConfig::PerMonitor(map) => output
+					.get_info(&self.output_state)
+					.map(|info| {
+						info.name
+							.as_ref()
+							.map(|name| map.get(name).unwrap_or(&gpu_selector_default))
+							.unwrap_or(&gpu_selector_default)
+					})
+					.unwrap_or(&gpu_selector_default),
+			};
 			output
 				.init_renderer(
 					render_manager,
 					conn,
 					configure.new_size,
 					&RendererOptions {
-						gpu_selector: &wallpaper_state.gpu_selector,
+						gpu_selector,
 						shader_source: wallpaper_state.shader_source.as_deref(),
 						initial_image: wallpaper_state.current_image.as_ref(),
 						scaling_mode: &wallpaper_state.scaling_mode,

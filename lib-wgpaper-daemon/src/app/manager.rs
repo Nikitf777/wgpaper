@@ -63,7 +63,7 @@ impl SctkManager {
 		};
 
 		let options = LaunchOptions {
-			gpu_selector: config.gpu().cloned(),
+			gpu: config.gpu().cloned(),
 			shader_source,
 			initial_image: initial_image,
 			scaling_mode: config.scaling_mode().clone(),

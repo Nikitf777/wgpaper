@@ -5,7 +5,7 @@ use pollster::FutureExt;
 use wgpaper_config::ScalingMode;
 use wgpu::{
 	Adapter, BindGroup, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule,
-	TextureFormat, TextureView,
+	TextureFormat, TextureView, hal::noop::adapter_info,
 };
 
 use crate::renderer::{
@@ -66,10 +66,15 @@ impl GpuDevice {
 	/// all shared resources.
 	pub fn new(instance: &Instance, gpu_selector: &renderer::GpuSelector) -> anyhow::Result<Self> {
 		let wgpu_selector = WgpuSelector::from(gpu_selector.clone());
-		let adapter =
-			pollster::block_on(wgpu_selector::select_gpu(instance, wgpu_selector)).unwrap_or(
-				pollster::block_on(wgpu_selector::select_gpu(instance, WgpuSelector::default()))?,
-			);
+		let adapter = if let Ok(adapter) =
+			pollster::block_on(wgpu_selector::select_gpu(instance, wgpu_selector))
+		{
+			log::info!("Using GPU: {}", adapter.get_info().name);
+			adapter
+		} else {
+			log::warn!("Failed to find a GPU based on provided criteria");
+			pollster::block_on(wgpu_selector::select_gpu(instance, WgpuSelector::default()))?
+		};
 
 		let (device, queue) = adapter
 			.request_device(&wgpu::DeviceDescriptor::default())

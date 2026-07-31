@@ -3,6 +3,7 @@ use const_format::formatcp;
 use serde::{Deserialize, Deserializer};
 use shellexpand::tilde;
 use std::{
+	collections::HashMap,
 	env, fs,
 	path::{Path, PathBuf},
 };
@@ -48,6 +49,7 @@ impl Default for ListenSocket {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct GpuSelector {
 	pub index: Option<usize>,
 	pub name_substring: Option<String>,
@@ -61,6 +63,19 @@ impl Default for GpuSelector {
 			name_substring: None,
 			device_type: None,
 		}
+	}
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuConfig {
+	Global(GpuSelector),
+	PerMonitor(HashMap<String, GpuSelector>),
+}
+
+impl Default for GpuConfig {
+	fn default() -> Self {
+		GpuConfig::PerMonitor(HashMap::default())
 	}
 }
 
@@ -137,7 +152,7 @@ pub struct Config {
 
 	#[serde(default)]
 	listen_socket: ListenSocket,
-	gpu: Option<GpuSelector>,
+	gpu: Option<GpuConfig>,
 }
 
 impl Config {
@@ -205,7 +220,7 @@ impl Config {
 	}
 
 	/// Returns the GPU configuration if set
-	pub fn gpu(&self) -> Option<&GpuSelector> {
+	pub fn gpu(&self) -> Option<&GpuConfig> {
 		self.gpu.as_ref()
 	}
 }

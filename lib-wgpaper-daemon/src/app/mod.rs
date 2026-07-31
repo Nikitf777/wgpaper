@@ -10,7 +10,7 @@ use smithay_client_toolkit::{
 	compositor::{CompositorHandler, CompositorState},
 	delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
 	delegate_shm,
-	output::{OutputHandler, OutputState},
+	output::{OutputHandler, OutputInfo, OutputState},
 	registry::{ProvidesRegistryState, RegistryState},
 	registry_handlers,
 	seat::{Capability, SeatHandler, SeatState},
@@ -56,7 +56,7 @@ impl SctkState {
 		let layer_shell = LayerShell::bind(&globals, &qh).context("layer shell not available")?;
 		let shm = Shm::bind(&globals, &qh).context("wl_shm not available")?;
 
-		let gpu_selector = options.gpu_selector.unwrap_or_default();
+		let gpu_setup = options.gpu.unwrap_or_default();
 
 		Ok(Self {
 			registry_state,
@@ -64,13 +64,12 @@ impl SctkState {
 			shm,
 			compositor_state,
 			layer_shell,
-			output_manager: OutputManager::new(output_state),
+			output_manager: OutputManager::new(gpu_setup, output_state),
 			render_manager: RenderManager::new(),
 			qh,
 			exit: false,
 
 			wallpaper_state: WallpaperState {
-				gpu_selector,
 				shader_source: options.shader_source,
 				current_image: options.initial_image,
 				transition: ActiveTransition::default(),

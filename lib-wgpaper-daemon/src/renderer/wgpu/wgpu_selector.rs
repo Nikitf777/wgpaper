@@ -124,6 +124,7 @@ pub async fn select_gpu(
 
 	// Handle index-based selection (positional)
 	if let Some(index) = selector.index {
+		log::info!("index is Some: {}", index);
 		return match adapters.get(index) {
 			Some(adapter) if selector.matches(adapter) => Ok(adapter.clone()),
 			Some(_) => Err(SelectionError::IndexMismatch {
