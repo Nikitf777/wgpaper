@@ -10,7 +10,7 @@ use smithay_client_toolkit::{
 	compositor::{CompositorHandler, CompositorState},
 	delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_seat,
 	delegate_shm,
-	output::{OutputHandler, OutputInfo, OutputState},
+	output::{OutputHandler, OutputState},
 	registry::{ProvidesRegistryState, RegistryState},
 	registry_handlers,
 	seat::{Capability, SeatHandler, SeatState},
@@ -70,7 +70,7 @@ impl SctkState {
 			exit: false,
 
 			wallpaper_state: WallpaperState {
-				shader_source: options.shader_source,
+				shader: options.shader,
 				current_image: options.initial_image,
 				transition: ActiveTransition::default(),
 				scaling_mode: options.scaling_mode,

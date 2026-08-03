@@ -24,7 +24,7 @@ use wayland_client::{
 	Connection, QueueHandle,
 	protocol::{wl_output::WlOutput, wl_surface::WlSurface},
 };
-use wgpaper_config::GpuConfig;
+use wgpaper_config::{GpuConfig, ShaderConfig};
 
 pub struct OutputStateEntry {
 	output: WlOutput,
@@ -150,6 +150,11 @@ fn calculate_global_bounds(output_state: &OutputState) -> anyhow::Result<Bounds>
 	Ok(Bounds::new((max_x, max_y), (min_x, min_y)))
 }
 
+pub struct OutputsConfiguration {
+	gpu_config: GpuConfig,
+	shader_config: ShaderConfig,
+}
+
 pub struct OutputManager {
 	gpu_config: GpuConfig,
 	output_state: OutputState,
@@ -270,6 +275,13 @@ impl OutputManager {
 					})
 					.unwrap_or(&gpu_selector_default),
 			};
+			let shader_source = match output.get_info(&self.output_state) {
+				Some(info) => wallpaper_state
+					.shader
+					.resolve_for_output(info.name.as_deref()),
+				None => wallpaper_state.shader.resolve_for_output(None),
+			};
+
 			output
 				.init_renderer(
 					render_manager,
@@ -277,7 +289,7 @@ impl OutputManager {
 					configure.new_size,
 					&RendererOptions {
 						gpu_selector,
-						shader_source: wallpaper_state.shader_source.as_deref(),
+						shader_source,
 						initial_image: wallpaper_state.current_image.as_ref(),
 						scaling_mode: &wallpaper_state.scaling_mode,
 					},

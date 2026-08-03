@@ -8,6 +8,49 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+/// A `PathBuf` whose `~` is expanded to the home directory during
+/// deserialization.  All path-typed config fields use this wrapper so the
+/// expansion logic lives in a single place.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConfigPath(PathBuf);
+
+impl<'de> Deserialize<'de> for ConfigPath {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let s = String::deserialize(deserializer)?;
+		Ok(ConfigPath::from(s))
+	}
+}
+
+impl From<String> for ConfigPath {
+	fn from(s: String) -> Self {
+		ConfigPath(get_path_from_string_expanded(s))
+	}
+}
+
+impl AsRef<Path> for ConfigPath {
+	fn as_ref(&self) -> &Path {
+		&self.0
+	}
+}
+
+impl std::ops::Deref for ConfigPath {
+	type Target = Path;
+
+	fn deref(&self) -> &Path {
+		&self.0
+	}
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShaderConfig {
+	Global(ConfigPath),
+	PerMonitor(HashMap<String, ConfigPath>),
+}
+
 #[derive(Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Background {
@@ -100,30 +143,8 @@ fn get_path_from_string_expanded(path: String) -> PathBuf {
 	PathBuf::from(tilde(&path).into_owned())
 }
 
-fn deserialize_path_expanded<'de, D>(deserializer: D) -> Result<Option<PathBuf>, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	let s: Option<String> = Option::deserialize(deserializer)?;
-	s.map(|path_str| Ok(PathBuf::from(get_path_from_string_expanded(path_str))))
-		.transpose()
-}
-
-fn deserialize_paths_expanded<'de, D>(deserializer: D) -> Result<Vec<PathBuf>, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	let paths: Vec<String> = Vec::deserialize(deserializer)?;
-	paths
-		.into_iter()
-		.map(|path_str| Ok(PathBuf::from(get_path_from_string_expanded(path_str))))
-		.collect()
-}
-
-fn wallpaper_directories_default() -> Vec<PathBuf> {
-	vec![get_path_from_string_expanded(
-		"~/Pictures/Wallpapers".to_string(),
-	)]
+fn wallpaper_directories_default() -> Vec<ConfigPath> {
+	vec![ConfigPath::from("~/Pictures/Wallpapers".to_string())]
 }
 
 fn image_extensions_default() -> Vec<String> {
@@ -132,17 +153,14 @@ fn image_extensions_default() -> Vec<String> {
 
 #[derive(Deserialize)]
 pub struct Config {
-	#[serde(default, deserialize_with = "deserialize_path_expanded")]
-	shader: Option<PathBuf>,
+	#[serde(default)]
+	shader: Option<ShaderConfig>,
 
-	#[serde(default, deserialize_with = "deserialize_path_expanded")]
-	initial_wallpaper: Option<PathBuf>,
+	#[serde(default)]
+	initial_wallpaper: Option<ConfigPath>,
 
-	#[serde(
-		default = "wallpaper_directories_default",
-		deserialize_with = "deserialize_paths_expanded"
-	)]
-	wallpaper_directories: Vec<PathBuf>,
+	#[serde(default = "wallpaper_directories_default")]
+	wallpaper_directories: Vec<ConfigPath>,
 
 	#[serde(default = "image_extensions_default")]
 	image_extensions: Vec<String>,
@@ -189,9 +207,9 @@ impl Config {
 		Ok(config_dir)
 	}
 
-	/// Returns the animation shader path if configured
-	pub fn shader(&self) -> Option<&Path> {
-		self.shader.as_deref()
+	/// Returns the animation shader config if configured
+	pub fn shader(&self) -> Option<&ShaderConfig> {
+		self.shader.as_ref()
 	}
 
 	/// Returns the initial wallpaper path if configured
@@ -200,7 +218,7 @@ impl Config {
 	}
 
 	/// Returns wallpaper directories if configured
-	pub fn wallpaper_directories(&self) -> &[PathBuf] {
+	pub fn wallpaper_directories(&self) -> &[ConfigPath] {
 		self.wallpaper_directories.as_ref()
 	}
 

@@ -1,12 +1,11 @@
 use crate::{
-	LaunchOptions,
+	LaunchOptions, RuntimeShaderConfig,
 	app::communicator::SctkCommunicator,
 	image_wrapper::{ImageWrapper, ImageWrapperError},
 	utilities::random_file::{RandomFileError, RandomFileSelector},
 };
 use anyhow::Context;
 use log::warn;
-use std::fs;
 use thiserror::Error;
 use wgpaper_config::Config;
 
@@ -47,24 +46,21 @@ pub struct SctkManager {
 
 impl SctkManager {
 	pub fn try_new(config: Config) -> anyhow::Result<Self> {
-		let mut image_selector = RandomFileSelector::new(
-			config.wallpaper_directories().to_vec(),
-			config.image_extensions().to_vec(),
-		);
+		let wallpaper_dirs: Vec<std::path::PathBuf> = config
+			.wallpaper_directories()
+			.iter()
+			.map(|path| path.as_ref().to_path_buf())
+			.collect();
+		let mut image_selector =
+			RandomFileSelector::new(wallpaper_dirs, config.image_extensions().to_vec());
 		image_selector.refresh_matching_files()?;
 
 		let initial_image = pick_next_image_option(&mut image_selector);
 		let next_image = pick_next_image_option(&mut image_selector);
 
-		let shader_source = if let Some(shader_path) = config.shader() {
-			fs::read_to_string(shader_path).ok()
-		} else {
-			None
-		};
-
 		let options = LaunchOptions {
 			gpu: config.gpu().cloned(),
-			shader_source,
+			shader: RuntimeShaderConfig::from_config(config.shader()),
 			initial_image: initial_image,
 			scaling_mode: config.scaling_mode().clone(),
 		};
