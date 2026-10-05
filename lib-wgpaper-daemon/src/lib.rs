@@ -56,9 +56,9 @@ impl RuntimeShaderConfig {
 	pub fn resolve_for_output(&self, output_name: Option<&str>) -> Option<&str> {
 		match self {
 			RuntimeShaderConfig::Global(source) => source.as_deref(),
-			RuntimeShaderConfig::PerMonitor(map) => {
-				output_name.and_then(|name| map.get(name)).map(|s| s.as_str())
-			}
+			RuntimeShaderConfig::PerMonitor(map) => output_name
+				.and_then(|name| map.get(name))
+				.map(|s| s.as_str()),
 		}
 	}
 }
