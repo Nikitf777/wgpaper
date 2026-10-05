@@ -1,23 +1,42 @@
 [env]
 RUST_LOG = 'info'
 
-[tasks.ver]
-run = 'cargo --version'
-
 [tasks.build]
 run = 'cargo build'
+alias = 'b'
 
-[tasks.rbuild]
+[tasks.build-release]
 run = 'cargo build --release'
+alias = 'br'
 
 [tasks.test]
 run = 'cargo test'
+alias = 't'
 
-[tasks.rtest]
+[tasks.test-release]
 run = 'cargo test --release'
+alias = 'tr'
 
-[tasks.daemon]
+[tasks.run-daemon]
 run = 'cargo run --bin wgpaper-daemon-http'
+alias = 'rd'
 
-[tasks.rdaemon]
+[tasks.run-daemon-release]
 run = 'cargo run --bin wgpaper-daemon-http --release'
+alias = 'rdr'
+
+[tasks.fmt]
+run = 'cargo fmt'
+alias = 'f'
+
+[tasks.clippy]
+run = 'cargo clippy'
+alias = 'c'
+
+[tasks.clippy-fix]
+run = 'cargo clippy --fix'
+alias = 'cf'
+
+[tasks.clippy-fix-dirty]
+run = 'cargo clippy --fix --allow-dirty'
+alias = 'cfd'
