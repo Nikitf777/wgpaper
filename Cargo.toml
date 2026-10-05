@@ -17,8 +17,8 @@ tokio = "1.49.0"
 const_format = "0.2.35"
 calloop = "0.14.3"
 csscolorparser = { version = "0.8.2", features = ["serde"] }
-spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "63d5a41422010cd3f732b587b9dcd1d1a2b42de7" }
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "63d5a41422010cd3f732b587b9dcd1d1a2b42de7" }
+spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", tag = "v0.10.0" }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", tag = "v0.10.0" }
 
 [profile.dev]
 opt-level = 3
