@@ -1,0 +1,10 @@
+# Needed because profile.dev.codegen-backend is an unstable option.
+[unstable]
+codegen-backend = true
+
+# Cranelift cannot link crates that use the `global_asm!` +
+# `#[link_name = "\x01..."]` pattern (e.g. `pulp`, via `image`), so dev builds
+# must use the LLVM backend. Cargo config files take precedence over
+# `[profile.*]` in Cargo.toml, so the backend cannot be selected there.
+[profile.dev]
+codegen-backend = "llvm"
