@@ -17,7 +17,7 @@ fn create_texture_bind_group(
 	sampler: &Sampler,
 ) -> BindGroup {
 	device.create_bind_group(&wgpu::BindGroupDescriptor {
-		layout: layout,
+		layout,
 		entries: &[
 			BindGroupEntry {
 				binding: 0,
