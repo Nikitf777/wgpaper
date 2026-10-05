@@ -78,7 +78,7 @@ pub fn create_command_encoder(device: &Device, label: &str) -> CommandEncoder {
 
 pub fn create_color_attachment<'tex>(view: &'tex TextureView) -> RenderPassColorAttachment<'tex> {
 	RenderPassColorAttachment {
-		view: view,
+		view,
 		ops: Operations {
 			load: LoadOp::Clear(Color {
 				r: 0.1,
@@ -111,7 +111,7 @@ pub fn render_pass<'tex>(
 	texture_bind_group: &BindGroup,
 	per_frame_data_bind_group: &BindGroup,
 ) {
-	render_pass.set_pipeline(&pipeline);
+	render_pass.set_pipeline(pipeline);
 	render_pass.set_bind_group(0, texture_bind_group, &[]);
 	render_pass.set_bind_group(1, per_frame_data_bind_group, &[]);
 	render_pass.draw(0..3, 0..1);

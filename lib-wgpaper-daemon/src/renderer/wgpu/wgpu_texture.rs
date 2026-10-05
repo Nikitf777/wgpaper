@@ -22,7 +22,7 @@ impl WgpuTexture {
 	) -> anyhow::Result<Self> {
 		Self::from_rgba8(
 			device,
-			&queue,
+			queue,
 			image.dimensions(),
 			image.as_slice(),
 			label,

@@ -49,17 +49,17 @@ impl WgpuTextureScaler {
 
 		let scaling_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
 			label: Some("scaling_pipeline_layout"),
-			bind_group_layouts: &[&layout, &per_frame_data_bind_group_layout],
+			bind_group_layouts: &[&layout, per_frame_data_bind_group_layout],
 			immediate_size: 0,
 		});
 
-		let frag = create_scaling_fragment_shader(&device, &scaling_mode);
+		let frag = create_scaling_fragment_shader(device, &scaling_mode);
 
 		let scaling_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 			label: Some("scaling_pipeline"),
 			layout: Some(&scaling_pipeline_layout),
 			vertex: wgpu::VertexState {
-				module: &vertex_shader,
+				module: vertex_shader,
 				entry_point: Some(wgpu_shaders::VS_ENTRY),
 				buffers: &[],
 				compilation_options: Default::default(),
@@ -103,7 +103,7 @@ impl WgpuTextureScaler {
 		wgpu_utilities::render_pass(
 			&mut render_pass,
 			&self.pipeline,
-			&texture_bind_group,
+			texture_bind_group,
 			per_frame_data_bind_group,
 		);
 	}
@@ -126,7 +126,7 @@ impl WgpuTextureScaler {
 				},
 				BindGroupEntry {
 					binding: 1,
-					resource: BindingResource::Sampler(&sampler),
+					resource: BindingResource::Sampler(sampler),
 				},
 			],
 			label: Some("scaling_bind_group"),

@@ -56,11 +56,10 @@ impl OutputStateEntry {
 	}
 
 	pub fn render(&mut self) {
-		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.render() {
+		if let Some(renderer) = &mut self.renderer
+			&& let Err(e) = renderer.render() {
 				warn!("Rendering error: {}", e);
 			}
-		}
 	}
 
 	pub fn init_renderer(
@@ -80,11 +79,10 @@ impl OutputStateEntry {
 			return;
 		}
 
-		if let Some(renderer) = &mut self.renderer {
-			if let Err(e) = renderer.resize(size) {
+		if let Some(renderer) = &mut self.renderer
+			&& let Err(e) = renderer.resize(size) {
 				warn!("Resize error: {}", e);
 			}
-		}
 	}
 
 	pub fn is_transitioning(&self) -> bool {
@@ -175,7 +173,7 @@ impl OutputManager {
 	}
 
 	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
-		for (_, output) in self.outputs.iter_mut() {
+		for output in self.outputs.values_mut() {
 			output.frame(qh);
 			output.commit();
 		}
@@ -225,7 +223,7 @@ impl OutputManager {
 			surface.clone(),
 			Layer::Background,
 			Some("wallpaper_layer"),
-			Some(&output),
+			Some(output),
 		);
 
 		layer.set_anchor(Anchor::all());

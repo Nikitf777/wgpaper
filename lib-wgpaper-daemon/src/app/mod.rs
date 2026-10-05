@@ -142,7 +142,7 @@ impl OutputHandler for SctkState {
 
 	fn new_output(&mut self, _conn: &Connection, qh: &QueueHandle<Self>, output: WlOutput) {
 		self.output_manager.handle_new_output(
-			&qh,
+			qh,
 			&self.compositor_state,
 			&self.layer_shell,
 			&output,

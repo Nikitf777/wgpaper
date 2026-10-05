@@ -36,7 +36,7 @@ impl From<renderer::GpuSelector> for WgpuSelector {
 			name_substring: selector.name_substring,
 			device_type: selector
 				.device_type
-				.map(|device_type| DeviceType::from(device_type)),
+				.map(DeviceType::from),
 			backends: None,
 		}
 	}
@@ -83,18 +83,16 @@ impl WgpuSelector {
 		let info = adapter.get_info();
 
 		// Name filter (case-insensitive substring)
-		if let Some(ref substr) = self.name_substring {
-			if !info.name.to_lowercase().contains(substr) {
+		if let Some(ref substr) = self.name_substring
+			&& !info.name.to_lowercase().contains(substr) {
 				return false;
 			}
-		}
 
 		// Device type filter
-		if let Some(device_type) = self.device_type {
-			if info.device_type != device_type {
+		if let Some(device_type) = self.device_type
+			&& info.device_type != device_type {
 				return false;
 			}
-		}
 
 		true
 	}

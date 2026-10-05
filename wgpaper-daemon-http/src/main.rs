@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
 		.inspect_err(|err| {
 			warn!(
 				"Failed to parse config file: {}. Falling back to defaults.",
-				err.to_string()
+				err
 			);
 		})
 		.unwrap_or_default();
@@ -27,7 +27,7 @@ async fn main() -> std::io::Result<()> {
 	let sctk_manager = SctkManager::try_new(config)
 		.map(|manager| Arc::new(Mutex::new(manager)))
 		.unwrap_or_else(|err| {
-			error!("Failed to initialize the app manager: {}.", err.to_string());
+			error!("Failed to initialize the app manager: {}.", err);
 			std::process::exit(1);
 		});
 	let post_server_sctk_manager = sctk_manager.clone();
@@ -35,7 +35,7 @@ async fn main() -> std::io::Result<()> {
 	let server = server(sctk_manager.clone()).unwrap_or_else(|err| {
 		error!(
 			"Failed to start the HTTP server: {}. Trying to stop the SCTK thread...",
-			err.to_string()
+			err
 		);
 		shutdown_sctk_manager(&post_server_sctk_manager);
 		std::process::exit(1);
@@ -69,13 +69,13 @@ async fn main() -> std::io::Result<()> {
 
 fn shutdown_sctk_manager(sctk_manager: &Arc<Mutex<SctkManager>>) {
 	let mut manager = sctk_manager.lock().unwrap_or_else(|err| {
-		error!("Failed to sync SCTK manager: {}.", err.to_string());
+		error!("Failed to sync SCTK manager: {}.", err);
 		std::process::exit(1);
 	});
 	manager.shutdown().unwrap_or_else(|err| {
 		error!(
 			"Failed send the Stop command to the SCTK thread: {}.",
-			err.to_string()
+			err
 		);
 		std::process::exit(1);
 	});

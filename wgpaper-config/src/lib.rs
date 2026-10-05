@@ -191,7 +191,7 @@ impl Config {
 
 	fn get_local_config_path() -> anyhow::Result<PathBuf> {
 		let mut config_dir = env::var("XDG_CONFIG_HOME")
-			.map(|dir| PathBuf::from(dir))
+			.map(PathBuf::from)
 			.unwrap_or(
 				std::env::home_dir()
 					.context("Failed to get home directory.")

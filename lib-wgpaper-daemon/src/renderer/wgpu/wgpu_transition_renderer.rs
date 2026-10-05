@@ -17,7 +17,7 @@ fn create_texture_bind_group(
 	sampler: &Sampler,
 ) -> BindGroup {
 	device.create_bind_group(&wgpu::BindGroupDescriptor {
-		layout: &layout,
+		layout: layout,
 		entries: &[
 			BindGroupEntry {
 				binding: 0,
@@ -29,7 +29,7 @@ fn create_texture_bind_group(
 			},
 			BindGroupEntry {
 				binding: 2,
-				resource: BindingResource::Sampler(&sampler),
+				resource: BindingResource::Sampler(sampler),
 			},
 		],
 		label: Some("transition_texture_bind_group"),
@@ -99,7 +99,7 @@ impl WgpuTransitionRenderer {
 			label: Some("transition_pipeline_layout"),
 			bind_group_layouts: &[
 				&texture_bind_group_layout,
-				&per_frame_data_bind_group_layout,
+				per_frame_data_bind_group_layout,
 			],
 			immediate_size: 0,
 		});
@@ -108,13 +108,13 @@ impl WgpuTransitionRenderer {
 			label: Some("transition_pipeline"),
 			layout: Some(&pipeline_layout),
 			vertex: wgpu::VertexState {
-				module: &vertex_shader,
+				module: vertex_shader,
 				entry_point: Some(wgpu_shaders::VS_ENTRY),
 				buffers: &[],
 				compilation_options: Default::default(),
 			},
 			fragment: Some(wgpu::FragmentState {
-				module: &transition_shader,
+				module: transition_shader,
 				entry_point: Some(fragment_entry),
 				targets: &[Some(wgpu::ColorTargetState {
 					format,
@@ -169,7 +169,7 @@ impl WgpuTransitionRenderer {
 		wgpu_utilities::render_pass(
 			&mut render_pass,
 			&self.pipeline,
-			&texture_bind_group,
+			texture_bind_group,
 			per_frame_data_bind_group,
 		);
 	}

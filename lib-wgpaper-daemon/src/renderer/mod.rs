@@ -46,7 +46,7 @@ impl From<wgpaper_config::GpuSelector> for GpuSelector {
 			name_substring: selector.name_substring,
 			device_type: selector
 				.device_type
-				.map(|device_type| DeviceType::from(device_type)),
+				.map(DeviceType::from),
 		}
 	}
 }

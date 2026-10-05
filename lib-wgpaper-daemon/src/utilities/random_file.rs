@@ -92,17 +92,15 @@ where
 				continue;
 			}
 
-			if let Some(ext) = path_buf.extension().and_then(|s| s.to_str()) {
-				if extensions.iter().any(|e| e == ext) {
-					if excluded_files
+			if let Some(ext) = path_buf.extension().and_then(|s| s.to_str())
+				&& extensions.iter().any(|e| e == ext)
+					&& excluded_files
 						.iter()
 						.find(|excl| excl.as_ref() == path_buf)
 						.is_none()
 					{
 						matching_files.push(path_buf);
 					}
-				}
-			}
 		}
 	}
 
@@ -237,17 +235,15 @@ where
 				continue;
 			}
 
-			if let Some(ext) = path_buf.extension().and_then(|s| s.to_str()) {
-				if extensions.iter().any(|e| e == ext) {
-					if excluded_files
+			if let Some(ext) = path_buf.extension().and_then(|s| s.to_str())
+				&& extensions.iter().any(|e| e == ext)
+					&& excluded_files
 						.iter()
 						.find(|excl| excl.as_ref() == path_buf)
 						.is_none()
 					{
 						matching_files.push(path_buf);
 					}
-				}
-			}
 		}
 	}
 

@@ -33,7 +33,7 @@ fn pick_next_image(
 fn pick_next_image_option(file_selector: &mut RandomFileSelector) -> Option<ImageWrapper> {
 	pick_next_image(file_selector)
 		.inspect_err(|err| {
-			warn!("Failed to pick the initial image: {}.", err.to_string());
+			warn!("Failed to pick the initial image: {}.", err);
 		})
 		.ok()
 }
@@ -61,7 +61,7 @@ impl SctkManager {
 		let options = LaunchOptions {
 			gpu: config.gpu().cloned(),
 			shader: RuntimeShaderConfig::from_config(config.shader()),
-			initial_image: initial_image,
+			initial_image,
 			scaling_mode: config.scaling_mode().clone(),
 		};
 
@@ -84,7 +84,7 @@ impl SctkManager {
 		{
 			Ok(image) => self.communicator.start_transition_all(image)?,
 			Err(err) => {
-				warn!("{}. Skipping starting the transition...", err.to_string())
+				warn!("{}. Skipping starting the transition...", err)
 			}
 		}
 

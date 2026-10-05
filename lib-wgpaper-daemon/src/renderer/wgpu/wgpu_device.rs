@@ -5,7 +5,7 @@ use pollster::FutureExt;
 use wgpaper_config::ScalingMode;
 use wgpu::{
 	Adapter, BindGroup, BindGroupLayout, Device, Instance, Queue, Sampler, ShaderModule,
-	TextureFormat, TextureView, hal::noop::adapter_info,
+	TextureFormat, TextureView,
 };
 
 use crate::renderer::{

@@ -84,7 +84,7 @@ pub fn create_animation_shader(device: &Device, shader_source: Option<&str>) -> 
 		Some(src) => {
 			let module = device.create_shader_module(ShaderModuleDescriptor {
 				label: Some("custom_animation_shader"),
-				source: ShaderSource::Wgsl(Cow::Owned(src.to_string().into())),
+				source: ShaderSource::Wgsl(Cow::Owned(src.to_string())),
 			});
 			SpvShader {
 				module,

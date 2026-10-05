@@ -72,7 +72,7 @@ impl PerFrameDataUniform {
 }
 
 fn write_per_frame_data(data: &PerFrameDataUniform, queue: &Queue, buffer: &Buffer) {
-	queue.write_buffer(&buffer, 0, bytemuck::bytes_of(data));
+	queue.write_buffer(buffer, 0, bytemuck::bytes_of(data));
 }
 
 /// Create the bind-group layout for per-frame uniforms (no device reference captured).
@@ -117,9 +117,9 @@ impl PerFrameUniformManager {
 			mapped_at_creation: false,
 		});
 		let data = PerFrameDataUniform::new(
-			(screen_size.0 as f32, screen_size.1 as f32),
-			(screen_size.0 as f32, screen_size.1 as f32),
-			(texture_size.0 as f32, texture_size.1 as f32),
+			(screen_size.0, screen_size.1),
+			(screen_size.0, screen_size.1),
+			(texture_size.0, texture_size.1),
 			TransitionProgress::reset(),
 			bg_color,
 		);
@@ -175,9 +175,9 @@ impl PerFrameUniformManager {
 			mapped_at_creation: false,
 		});
 		let data = PerFrameDataUniform::new(
-			(screen_size.0 as f32, screen_size.1 as f32),
-			(screen_size.0 as f32, screen_size.1 as f32),
-			(texture_size.0 as f32, texture_size.1 as f32),
+			(screen_size.0, screen_size.1),
+			(screen_size.0, screen_size.1),
+			(texture_size.0, texture_size.1),
 			TransitionProgress::reset(),
 			bg_color,
 		);
