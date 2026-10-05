@@ -1,6 +1,11 @@
 use keyframe::{AnimationSequence, functions::BezierCurve, keyframes, mint::Vector2};
 use std::time::{Duration, Instant};
 
+/// A point in time along a transition animation.
+///
+/// Trivial pair of `f32`s, so it is `Copy` — this lets callers keep using
+/// `progress` after handing it off to a renderer.
+#[derive(Debug, Clone, Copy)]
 pub struct TransitionProgress {
 	pub progress_bezier: f32,
 	pub progress_linear: f32,

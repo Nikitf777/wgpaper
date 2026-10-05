@@ -177,6 +177,7 @@ impl OutputManager {
 	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
 		for output in self.outputs.values_mut() {
 			output.frame(qh);
+			output.render();
 			output.commit();
 		}
 	}
@@ -189,6 +190,7 @@ impl OutputManager {
 		for (surface, output) in self.outputs.iter_mut() {
 			output.start_transition(image);
 			surface.frame(qh, surface.clone());
+			output.render();
 			output.commit();
 		}
 		Ok(())
@@ -201,14 +203,20 @@ impl OutputManager {
 		progress: TransitionProgress,
 	) {
 		if let Some(output) = self.outputs.get_mut(surface) {
-			if !progress.is_finished() {
-				surface.frame(qh, surface.clone());
-			}
 			if output.is_transitioning() {
 				output.set_transition_progress(progress);
 			}
 			output.render();
 			output.commit();
+
+			// Only keep the frame loop alive while the transition is actually
+			// animating. Once `progress` reaches its end we draw that final
+			// frame above and stop asking for callbacks, so an idle wallpaper
+			// costs nothing. A later `start_transition` requests the next
+			// callback and resumes the loop.
+			if !progress.is_finished() {
+				surface.frame(qh, surface.clone());
+			}
 		}
 	}
 
