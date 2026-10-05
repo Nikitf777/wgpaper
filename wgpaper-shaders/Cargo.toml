@@ -8,7 +8,7 @@ publish = false
 crate-type = ["lib"]
 
 [dependencies]
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "63d5a41422010cd3f732b587b9dcd1d1a2b42de7" }
+spirv-std = { workspace = true }
 glam = { version = "0.33.2", default-features = false, features = ["libm"] }
 
 [package.metadata.release]
