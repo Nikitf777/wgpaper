@@ -73,10 +73,7 @@ fn shutdown_sctk_manager(sctk_manager: &Arc<Mutex<SctkManager>>) {
 		std::process::exit(1);
 	});
 	manager.shutdown().unwrap_or_else(|err| {
-		error!(
-			"Failed send the Stop command to the SCTK thread: {}.",
-			err
-		);
+		error!("Failed send the Stop command to the SCTK thread: {}.", err);
 		std::process::exit(1);
 	});
 	info!("SCTK thread stopped.");

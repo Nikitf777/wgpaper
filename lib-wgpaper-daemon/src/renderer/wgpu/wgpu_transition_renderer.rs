@@ -97,10 +97,7 @@ impl WgpuTransitionRenderer {
 
 		let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("transition_pipeline_layout"),
-			bind_group_layouts: &[
-				&texture_bind_group_layout,
-				per_frame_data_bind_group_layout,
-			],
+			bind_group_layouts: &[&texture_bind_group_layout, per_frame_data_bind_group_layout],
 			immediate_size: 0,
 		});
 

@@ -190,16 +190,14 @@ impl Config {
 	}
 
 	fn get_local_config_path() -> anyhow::Result<PathBuf> {
-		let mut config_dir = env::var("XDG_CONFIG_HOME")
-			.map(PathBuf::from)
-			.unwrap_or(
-				std::env::home_dir()
-					.context("Failed to get home directory.")
-					.map(|mut home_dir| {
-						home_dir.push(".config");
-						home_dir
-					})?,
-			);
+		let mut config_dir = env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or(
+			std::env::home_dir()
+				.context("Failed to get home directory.")
+				.map(|mut home_dir| {
+					home_dir.push(".config");
+					home_dir
+				})?,
+		);
 
 		config_dir.push(Config::APP_NAME);
 		config_dir.push(Config::CONFIG_FILE_NAME);

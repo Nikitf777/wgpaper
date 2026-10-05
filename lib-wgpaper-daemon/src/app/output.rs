@@ -57,9 +57,10 @@ impl OutputStateEntry {
 
 	pub fn render(&mut self) {
 		if let Some(renderer) = &mut self.renderer
-			&& let Err(e) = renderer.render() {
-				warn!("Rendering error: {}", e);
-			}
+			&& let Err(e) = renderer.render()
+		{
+			warn!("Rendering error: {}", e);
+		}
 	}
 
 	pub fn init_renderer(
@@ -80,9 +81,10 @@ impl OutputStateEntry {
 		}
 
 		if let Some(renderer) = &mut self.renderer
-			&& let Err(e) = renderer.resize(size) {
-				warn!("Resize error: {}", e);
-			}
+			&& let Err(e) = renderer.resize(size)
+		{
+			warn!("Resize error: {}", e);
+		}
 	}
 
 	pub fn is_transitioning(&self) -> bool {

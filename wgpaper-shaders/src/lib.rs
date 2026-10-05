@@ -6,9 +6,9 @@
 
 #![cfg_attr(target_arch = "spirv", no_std)]
 
-use spirv_std::glam::{vec2, Vec2, Vec4};
+use spirv_std::glam::{Vec2, Vec4, vec2};
 use spirv_std::image::Image2d;
-use spirv_std::{spirv, Sampler};
+use spirv_std::{Sampler, spirv};
 
 // ── shared uniform data ───────────────────────────────────────────────
 // Must match `PerFrameDataUniform` in `wgpu_uniforms.rs` byte-for-byte.
