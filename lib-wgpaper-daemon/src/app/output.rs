@@ -211,7 +211,13 @@ impl OutputManager {
 
 	pub fn queue_render_all(&mut self, qh: &QueueHandle<SctkState>) {
 		for output in self.outputs.values_mut() {
-			output.frame(qh);
+			// Only re-arm the callback for an output that is actually
+			// animating.  Arming it for an idle output costs one extra
+			// callback per configure, and the reply is dropped on the floor
+			// by `frame` because `is_transitioning()` is false.
+			if output.is_transitioning() {
+				output.frame(qh);
+			}
 			output.render();
 			output.commit();
 		}
@@ -241,17 +247,30 @@ impl OutputManager {
 			if output.is_transitioning() {
 				output.set_transition_progress(progress);
 			}
-			output.render();
-			output.commit();
 
-			// Only keep the frame loop alive while the transition is actually
-			// animating. Once `progress` reaches its end we draw that final
-			// frame above and stop asking for callbacks, so an idle wallpaper
-			// costs nothing. A later `start_transition` requests the next
-			// callback and resumes the loop.
-			if !progress.is_finished() {
+			// Arm the callback *before* drawing and committing, the same order
+			// `start_transition` and `queue_render_all` use.
+			//
+			// A `wl_surface.frame` callback is only serviced when the
+			// compositor repaints the surface. Requesting one *after* the commit
+			// leaves it depending on a *further* repaint of a surface that has
+			// just received no damage; when the compositor does not schedule
+			// one, the animation loop dies after a single frame and the
+			// wallpaper appears frozen on the old image. Requesting first ties
+			// the callback to the commit below, which does carry damage
+			// (`render` presents a new swapchain image).
+			//
+			// The loop is driven by this renderer's own progress rather than
+			// `progress`, the wall clock shared by every output: a stale or
+			// finished global value must not be able to cancel an animation
+			// that this output is still running, and one output reaching the
+			// end of a transition must not stop the others.
+			if output.is_transitioning() {
 				surface.frame(qh, surface.clone());
 			}
+
+			output.render();
+			output.commit();
 		}
 	}
 
