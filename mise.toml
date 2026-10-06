@@ -1,5 +1,5 @@
 [env]
-RUST_LOG = 'info'
+RUST_LOG = 'debug'
 
 [tasks.build]
 run = 'cargo build'
@@ -38,6 +38,149 @@ arg "<output_count>" default="1"
 '''
 run = 'WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c sway-config.sh'
 alias = 'rdsr'
+
+[tasks.run-systemd]
+usage = '''
+arg "<unit_name>"
+arg "<command>" var=#true
+'''
+run = 'systemctl --user reset-failed ${usage_unit_name} || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
+alias = 'rs'
+
+[tasks.systemd-logs]
+usage = '''
+arg "<unit_name>"
+'''
+run = 'journalctl --user -t ${usage_unit_name}'
+alias = 'sl'
+
+[tasks.status-systemd]
+usage = '''
+arg "<unit_name>"
+'''
+run = 'systemctl --user status ${usage_unit_name}'
+alias = 'sts'
+
+[tasks.stop-systemd]
+usage = '''
+arg "<unit_name>"
+'''
+run = 'systemctl --user stop ${usage_unit_name}'
+alias = 'ss'
+
+[tasks.run-systemd-daemon]
+usage = '''
+arg "<unit_name>" default="wgpaper-rd"
+'''
+run = 'mise rs ${usage_unit_name} mise rd'
+alias = 'rsd'
+
+[tasks.systemd-daemon-logs]
+usage = '''
+arg "<unit_name>" default="wgpaper-rd"
+'''
+run = 'mise sl ${usage_unit_name}'
+alias = 'sdl'
+
+[tasks.status-systemd-daemon]
+usage = '''
+arg "<unit_name>" default="wgpaper-rd"
+'''
+run = 'mise sts ${usage_unit_name}'
+alias = 'stsd'
+
+[tasks.stop-systemd-daemon]
+usage = '''
+arg "<unit_name>" default="wgpaper-rd"
+'''
+run = 'mise ss ${usage_unit_name}'
+alias = 'ssd'
+
+[tasks.run-systemd-daemon-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdr"
+'''
+run = 'mise rs ${usage_unit_name} mise rdr'
+alias = 'rsdr'
+
+[tasks.systemd-daemon-logs-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdr"
+'''
+run = 'mise sl ${usage_unit_name}'
+alias = 'sdlr'
+
+[tasks.status-systemd-daemon-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdr"
+'''
+run = 'mise sts ${usage_unit_name}'
+alias = 'stsdr'
+
+[tasks.stop-systemd-daemon-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdr"
+'''
+run = 'mise ss ${usage_unit_name}'
+alias = 'ssdr'
+
+[tasks.run-systemd-daemon-sway]
+usage = '''
+arg "<output_count>" default="1"
+arg "<unit_name>" default="wgpaper-rds"
+'''
+run = 'mise rs ${usage_unit_name} mise rds ${usage_output_count}'
+alias = 'rsds'
+
+[tasks.systemd-daemon-sway-logs]
+usage = '''
+arg "<unit_name>" default="wgpaper-rds"
+'''
+run = 'mise sl ${usage_unit_name}'
+alias = 'sdsl'
+
+[tasks.status-systemd-daemon-sway]
+usage = '''
+arg "<unit_name>" default="wgpaper-rds"
+'''
+run = 'mise sts ${usage_unit_name}'
+alias = 'stsds'
+
+[tasks.stop-systemd-daemon-sway]
+usage = '''
+arg "<unit_name>" default="wgpaper-rds"
+'''
+run = 'mise ss ${usage_unit_name}'
+alias = 'ssds'
+
+[tasks.run-systemd-daemon-sway-release]
+usage = '''
+arg "<output_count>" default="1"
+arg "<unit_name>" default="wgpaper-rdsr"
+'''
+run = 'mise rs ${usage_unit_name} mise rdsr ${usage_output_count}'
+alias = 'rsdsr'
+
+[tasks.systemd-daemon-sway-logs-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdsr"
+'''
+run = 'mise sl ${usage_unit_name}'
+alias = 'sdslr'
+
+[tasks.status-systemd-daemon-sway-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdsr"
+'''
+run = 'mise sts ${usage_unit_name}'
+alias = 'stsdsr'
+
+[tasks.stop-systemd-daemon-sway-release]
+usage = '''
+arg "<unit_name>" default="wgpaper-rdsr"
+'''
+run = 'mise ss ${usage_unit_name}'
+alias = 'ssdsr'
 
 [tasks.fmt]
 run = 'cargo fmt'
