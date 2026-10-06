@@ -1,10 +1,10 @@
 use wgpu::{
-	Device, Extent3d, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo, Texture,
+	Color, Device, Extent3d, Origin3d, Queue, TexelCopyBufferLayout, TexelCopyTextureInfo, Texture,
 	TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
 	TextureViewDescriptor,
 };
 
-use crate::image_wrapper::ImageWrapper;
+use crate::{image_wrapper::ImageWrapper, renderer::wgpu::wgpu_utilities};
 
 pub struct WgpuTexture {
 	#[allow(unused)]
@@ -12,7 +12,57 @@ pub struct WgpuTexture {
 	pub view: TextureView,
 }
 
+/// Descriptor shared by every wallpaper texture: always renderable, always
+/// sampleable, and always copyable so it can be blitted into a swapchain.
+fn texture_descriptor(
+	size: (u32, u32),
+	label: &str,
+	format: TextureFormat,
+) -> TextureDescriptor<'_> {
+	let extent = Extent3d {
+		width: size.0,
+		height: size.1,
+		depth_or_array_layers: 1,
+	};
+
+	TextureDescriptor {
+		label: Some(label),
+		size: extent,
+		mip_level_count: 1,
+		sample_count: 1,
+		dimension: TextureDimension::D2,
+		format,
+		usage: TextureUsages::RENDER_ATTACHMENT
+			| TextureUsages::TEXTURE_BINDING
+			| TextureUsages::COPY_SRC
+			| TextureUsages::COPY_DST,
+		view_formats: &[],
+	}
+}
+
 impl WgpuTexture {
+	/// Allocate a texture and clear it to fully transparent black on the GPU.
+	///
+	/// Unlike [`WgpuTexture::from_image`] this needs no CPU staging buffer and
+	/// performs no upload, which makes it the right choice for the
+	/// screen-sized textures that are (re)allocated on every resize.
+	///
+	/// The clear colour matches the zeroed placeholder buffer this replaced,
+	/// so an output that has no wallpaper to show yet looks the same as
+	/// before.
+	pub fn cleared(
+		device: &Device,
+		queue: &Queue,
+		size: (u32, u32),
+		label: &str,
+		format: TextureFormat,
+	) -> Self {
+		let texture = device.create_texture(&texture_descriptor(size, label, format));
+		let view = texture.create_view(&TextureViewDescriptor::default());
+		wgpu_utilities::clear_view(device, queue, &view, Color::TRANSPARENT);
+		Self { texture, view }
+	}
+
 	pub fn from_image(
 		device: &Device,
 		queue: &Queue,
@@ -44,19 +94,7 @@ impl WgpuTexture {
 			depth_or_array_layers: 1,
 		};
 
-		let texture = device.create_texture(&TextureDescriptor {
-			label: Some(label),
-			size: extend,
-			mip_level_count: 1,
-			sample_count: 1,
-			dimension: TextureDimension::D2,
-			format,
-			usage: TextureUsages::RENDER_ATTACHMENT
-				| TextureUsages::TEXTURE_BINDING
-				| TextureUsages::COPY_SRC
-				| TextureUsages::COPY_DST,
-			view_formats: &[],
-		});
+		let texture = device.create_texture(&texture_descriptor(size, label, format));
 
 		let (bytes_per_row, upload_data) = match format {
 			TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {

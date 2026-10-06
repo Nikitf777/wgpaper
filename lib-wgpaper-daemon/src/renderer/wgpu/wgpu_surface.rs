@@ -79,64 +79,70 @@ impl SurfaceRenderer {
 		};
 		surface.configure(&device.device, &config);
 
-		// ── placeholder / initial image ──────────────────────────────
-		let placeholder_rgba8 = vec![0u8; (size.0 * size.1 * 4) as usize];
-		let placeholder_image = ImageWrapper::from_rgba8(placeholder_rgba8, size);
-		let initial_image = options.initial_image.unwrap_or(&placeholder_image);
-
-		let initial_texture = WgpuTexture::from_image(
-			&device.device,
-			&device.queue,
-			initial_image,
-			"initial_texture",
-			surface_format,
-		)?;
+		// ── initial image ────────────────────────────────────────────
+		let initial_image = options.initial_image;
 
 		// ── sampler ──────────────────────────────────────────────────
-		let (address_mode, bg_color) = wgpu_utilities::get_address_mode_and_bg_color(&scaling_mode);
-		let sampler = wgpu_utilities::create_sampler(&device.device, address_mode);
+		// Reuse the samplers cached on the device instead of creating one
+		// per surface: the address mode is fully determined by the
+		// scaling mode.
+		let sampler = device.choose_sampler(&scaling_mode).clone();
 
 		// ── per-frame uniforms ───────────────────────────────────────
 		let mut per_frame_uniform_manager = PerFrameUniformManager::with_layout(
 			&device.device,
 			&device.per_frame_bind_group_layout,
 			(size.0 as f32, size.1 as f32),
-			(initial_image.width() as f32, initial_image.height() as f32),
-			bg_color,
+			initial_image
+				.map(|image| (image.width() as f32, image.height() as f32))
+				.unwrap_or((size.0 as f32, size.1 as f32)),
+			wgpu_utilities::bg_color_for(&scaling_mode),
 		);
-		per_frame_uniform_manager.write_data(&device.queue);
+		// `write_data` must come after every field update: it is the only
+		// thing that pushes the uniform to the GPU, so a later in-memory
+		// mutation is invisible to the shader until the next write.
 		per_frame_uniform_manager.update_transition_progress(TransitionProgress::finished());
+		per_frame_uniform_manager.write_data(&device.queue);
 
 		// ── scaled texture ───────────────────────────────────────────
-		let scaled_texture = WgpuTexture::from_image(
+		let scaled_texture = WgpuTexture::cleared(
 			&device.device,
 			&device.queue,
-			&placeholder_image,
+			size,
 			"scaled_texture",
 			surface_format,
-		)?;
+		);
 
 		// Scale the initial image into the scaled texture.
-		device.scale_texture(
-			&scaling_mode,
-			surface_format,
-			&device.queue,
-			&sampler,
-			&initial_texture.view,
-			&scaled_texture.view,
-			per_frame_uniform_manager.bind_group(),
-		);
+		if let Some(initial_image) = initial_image {
+			let initial_texture = WgpuTexture::from_image(
+				&device.device,
+				&device.queue,
+				initial_image,
+				"initial_texture",
+				surface_format,
+			)?;
+
+			device.scale_texture(
+				&scaling_mode,
+				surface_format,
+				&device.queue,
+				&sampler,
+				&initial_texture.view,
+				&scaled_texture.view,
+				per_frame_uniform_manager.bind_group(),
+			);
+		}
 
 		// ── off-screen textures (triple buffer) ──────────────────────
 		let offscreen_textures: [WgpuTexture; 3] = core::array::from_fn(|i| {
-			WgpuTexture::from_image(
+			WgpuTexture::cleared(
 				&device.device,
 				&device.queue,
-				&placeholder_image,
+				size,
 				&format!("offscreen_texture_{}", i),
 				surface_format,
 			)
-			.unwrap()
 		});
 		let display_texture_idx: usize = 0;
 		let render_texture_idx: usize = 1;
@@ -145,11 +151,15 @@ impl SurfaceRenderer {
 		let transition_shader =
 			wgpu_shaders::create_animation_shader(&device.device, options.shader_source);
 
+		// `prev` is the blank frame that was just rendered, `target` is the
+		// wallpaper.  With progress pinned to `finished()` the shader
+		// resolves to `target`, so the initial configure shows the wallpaper
+		// rather than the empty first frame.
 		let transition_renderer = WgpuTransitionRenderer::new(
 			&device.device,
 			&sampler,
-			&scaled_texture.view,                          // initial = prev
-			&offscreen_textures[display_texture_idx].view, // next = first frame
+			&offscreen_textures[display_texture_idx].view, // prev = blank first frame
+			&scaled_texture.view,                          // next = wallpaper
 			&device.per_frame_bind_group_layout,
 			&device.vertex_shader,
 			&transition_shader.module,
@@ -229,9 +239,47 @@ impl SurfaceRenderer {
 	}
 
 	/// Update the surface size (called when the output is resized).
+	///
+	/// Only the screen-sized resources are re-created: the wgpu surface,
+	/// sampler, uniform buffer and pipelines are size-independent and are
+	/// kept alive, so a resize does not recompile any shader.
 	pub fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()> {
-		if size.0 == 0 || size.1 == 0 {
+		if size.0 == 0 || size.1 == 0 || size == (self.config.width, self.config.height) {
 			return Ok(());
+		}
+
+		// The source image is not kept in memory, so the wallpaper that is
+		// currently on screen is resampled into the new geometry instead of
+		// being decoded and uploaded again.  `Stretch` is a plain 1:1
+		// resample of the already-fitted wallpaper, which is what we want
+		// here regardless of the configured scaling mode.
+		let new_scaled = WgpuTexture::cleared(
+			&self.device.device,
+			&self.device.queue,
+			size,
+			"scaled_texture",
+			self.surface_format,
+		);
+		let prev_scaled = std::mem::replace(&mut self.scaled_texture, new_scaled);
+		self.device.scale_texture(
+			&ScalingMode::Stretch,
+			self.surface_format,
+			&self.device.queue,
+			&self.sampler,
+			&prev_scaled.view,
+			&self.scaled_texture.view,
+			self.per_frame_uniform_manager.bind_group(),
+		);
+		drop(prev_scaled);
+
+		for (index, texture) in self.offscreen_textures.iter_mut().enumerate() {
+			*texture = WgpuTexture::cleared(
+				&self.device.device,
+				&self.device.queue,
+				size,
+				&format!("offscreen_texture_{}", index),
+				self.surface_format,
+			);
 		}
 
 		self.config.width = size.0;
@@ -239,6 +287,22 @@ impl SurfaceRenderer {
 		self.surface.configure(&self.device.device, &self.config);
 		self.per_frame_uniform_manager
 			.update_screen_size((size.0 as f32, size.1 as f32));
+
+		// The bind group still references the texture views that were just
+		// dropped, so it has to be rebuilt against the new ones.
+		self.transition_renderer.update_textures(
+			&self.device.device,
+			&self.offscreen_textures[self.display_texture_idx].view,
+			&self.scaled_texture.view,
+			&self.sampler,
+		);
+
+		// A resize destroys the "previous frame" the transition blends from,
+		// so an in-flight transition is completed instead of fading in from
+		// an empty texture.
+		self.set_transition_progress(TransitionProgress::finished());
+		self.write_data();
+
 		Ok(())
 	}
 

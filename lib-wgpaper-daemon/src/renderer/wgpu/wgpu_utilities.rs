@@ -9,7 +9,7 @@ use wayland_client::{Connection, Proxy};
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
 	AddressMode, BindGroup, Color, CommandEncoder, CommandEncoderDescriptor, Device, FilterMode,
-	Instance, LoadOp, MipmapFilterMode, Operations, RenderPass, RenderPassColorAttachment,
+	Instance, LoadOp, MipmapFilterMode, Operations, Queue, RenderPass, RenderPassColorAttachment,
 	RenderPassDescriptor, RenderPipeline, Sampler, SamplerDescriptor, StoreOp, Surface,
 	SurfaceTargetUnsafe, TextureView,
 };
@@ -36,28 +36,40 @@ pub fn create_surface<'a>(
 	})
 }
 
-pub fn get_address_mode_and_bg_color(
-	scaling_mode: &ScalingMode,
-) -> (AddressMode, csscolorparser::Color) {
+/// Colour painted behind the wallpaper for the modes that letterbox it
+/// (`Fit` / `Center`).  Modes that fill the screen ignore it.
+pub fn bg_color_for(scaling_mode: &ScalingMode) -> csscolorparser::Color {
 	match scaling_mode {
 		ScalingMode::Fit { background } | ScalingMode::Center { background } => {
-			if background == &Background::Repeat {
-				(AddressMode::Repeat, csscolorparser::Color::default())
+			if let Background::CssColor(color) = background {
+				color.clone()
 			} else {
-				(
-					AddressMode::MirrorRepeat,
-					if let Background::CssColor(color) = background {
-						color.clone()
-					} else {
-						csscolorparser::Color::default()
-					},
-				)
+				csscolorparser::Color::default()
 			}
 		}
-		ScalingMode::Stretch | ScalingMode::Cover => {
-			(AddressMode::MirrorRepeat, csscolorparser::Color::default())
-		}
+		ScalingMode::Stretch | ScalingMode::Cover => csscolorparser::Color::default(),
 	}
+}
+
+/// Give a freshly allocated texture defined contents without any CPU-side
+/// staging buffer or upload, so it can immediately be sampled from or used as
+/// a render target.
+pub fn clear_view(device: &Device, queue: &Queue, view: &TextureView, color: Color) {
+	let mut encoder = create_command_encoder(device, "clear_command_encoder");
+	encoder.begin_render_pass(&RenderPassDescriptor {
+		label: Some("clear_render_pass"),
+		color_attachments: &[Some(RenderPassColorAttachment {
+			view,
+			ops: Operations {
+				load: LoadOp::Clear(color),
+				store: StoreOp::Store,
+			},
+			resolve_target: None,
+			depth_slice: None,
+		})],
+		..Default::default()
+	});
+	queue.submit(Some(encoder.finish()));
 }
 
 pub fn create_sampler(device: &Device, address_mode: AddressMode) -> Sampler {

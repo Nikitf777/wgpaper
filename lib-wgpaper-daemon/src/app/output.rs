@@ -30,6 +30,24 @@ pub struct OutputStateEntry {
 	output: WlOutput,
 	layer: LayerSurface,
 	renderer: Option<SurfaceRenderer>,
+	/// Size the renderer was last built or resized for.  Meaningless while
+	/// `renderer` is `None`.
+	current_size: (u32, u32),
+}
+
+/// What a layer-surface configure means for an output's renderer.
+///
+/// The renderer owns resources that do not depend on the surface size (the
+/// wgpu surface, the sampler, the pipelines), so it is built exactly once —
+/// on the first usable configure — and merely resized afterwards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RendererState {
+	/// No renderer yet: this configure has to build one.
+	Uninitialized,
+	/// The renderer already matches the configured size; nothing to do.
+	UpToDate,
+	/// The renderer exists but was built for a different size.
+	NeedsResize,
 }
 
 impl OutputStateEntry {
@@ -38,6 +56,16 @@ impl OutputStateEntry {
 			output,
 			layer,
 			renderer: None,
+			current_size: (0, 0),
+		}
+	}
+
+	/// Classify a configure against the state of this output's renderer.
+	fn renderer_state(&self, size: (u32, u32)) -> RendererState {
+		match &self.renderer {
+			None => RendererState::Uninitialized,
+			Some(_) if self.current_size == size => RendererState::UpToDate,
+			Some(_) => RendererState::NeedsResize,
 		}
 	}
 
@@ -72,19 +100,26 @@ impl OutputStateEntry {
 	) -> anyhow::Result<()> {
 		let renderer = render_manager.create_surface(conn, &self.layer, size, options)?;
 		self.renderer = Some(renderer);
+		self.current_size = size;
 		Ok(())
 	}
 
-	pub fn resize(&mut self, size: (u32, u32)) {
-		if size.0 == 0 || size.1 == 0 {
-			return;
+	/// Resize the renderer, keeping the pipelines and the wgpu surface.
+	///
+	/// A no-op if the renderer has not been created yet, or if it already
+	/// uses this size.
+	pub fn resize(&mut self, size: (u32, u32)) -> anyhow::Result<()> {
+		let Some(renderer) = &mut self.renderer else {
+			return Ok(());
+		};
+
+		if size.0 == 0 || size.1 == 0 || self.current_size == size {
+			return Ok(());
 		}
 
-		if let Some(renderer) = &mut self.renderer
-			&& let Err(e) = renderer.resize(size)
-		{
-			warn!("Resize error: {}", e);
-		}
+		renderer.resize(size)?;
+		self.current_size = size;
+		Ok(())
 	}
 
 	pub fn is_transitioning(&self) -> bool {
@@ -269,45 +304,79 @@ impl OutputManager {
 		configure: &LayerSurfaceConfigure,
 		wallpaper_state: &WallpaperState,
 	) {
-		if let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) {
-			let gpu_selector_default = wgpaper_config::GpuSelector::default();
-			let gpu_selector = match &self.gpu_config {
-				GpuConfig::Global(selector) => selector,
-				GpuConfig::PerMonitor(map) => output
-					.get_info(&self.output_state)
-					.map(|info| {
-						info.name
-							.as_ref()
-							.map(|name| map.get(name).unwrap_or(&gpu_selector_default))
-							.unwrap_or(&gpu_selector_default)
-					})
-					.unwrap_or(&gpu_selector_default),
-			};
-			let shader_source = match output.get_info(&self.output_state) {
-				Some(info) => wallpaper_state
-					.shader
-					.resolve_for_output(info.name.as_deref()),
-				None => wallpaper_state.shader.resolve_for_output(None),
-			};
+		let Some(output) = self.outputs.values_mut().find(|e| &e.layer == layer) else {
+			return;
+		};
 
-			output
-				.init_renderer(
-					render_manager,
-					conn,
-					configure.new_size,
-					&RendererOptions {
-						gpu_selector,
-						shader_source,
-						initial_image: wallpaper_state.current_image.as_ref(),
-						scaling_mode: &wallpaper_state.scaling_mode,
-					},
-				)
-				.unwrap_or_else(|err| {
-					error!("Renderer init failed: {}", err);
-					std::process::exit(1);
-				});
+		let size = configure.new_size;
 
-			self.queue_render_all(qh);
+		// A zero-sized configure carries no usable geometry, and the
+		// compositor may legitimately send one (the layer surface requested
+		// its size with `set_size(0, 0)`).  The surface must still be
+		// committed to acknowledge the configure, otherwise it stays stuck
+		// in the pending-configure state and never draws.
+		if size.0 == 0 || size.1 == 0 {
+			warn!(
+				"Ignoring a zero-sized configure ({:?}); waiting for a usable size.",
+				size
+			);
+			output.commit();
+			return;
 		}
+
+		match output.renderer_state(size) {
+			// First usable configure: build the renderer.  Every later
+			// configure only resizes it, so pipelines are compiled once per
+			// output instead of once per configure.
+			RendererState::Uninitialized => {
+				let gpu_selector_default = wgpaper_config::GpuSelector::default();
+				let gpu_selector = match &self.gpu_config {
+					GpuConfig::Global(selector) => selector,
+					GpuConfig::PerMonitor(map) => output
+						.get_info(&self.output_state)
+						.map(|info| {
+							info.name
+								.as_ref()
+								.map(|name| map.get(name).unwrap_or(&gpu_selector_default))
+								.unwrap_or(&gpu_selector_default)
+						})
+						.unwrap_or(&gpu_selector_default),
+				};
+				let shader_source = match output.get_info(&self.output_state) {
+					Some(info) => wallpaper_state
+						.shader
+						.resolve_for_output(info.name.as_deref()),
+					None => wallpaper_state.shader.resolve_for_output(None),
+				};
+
+				output
+					.init_renderer(
+						render_manager,
+						conn,
+						size,
+						&RendererOptions {
+							gpu_selector,
+							shader_source,
+							initial_image: wallpaper_state.current_image.as_ref(),
+							scaling_mode: &wallpaper_state.scaling_mode,
+						},
+					)
+					.unwrap_or_else(|err| {
+						error!("Renderer init failed: {}", err);
+						std::process::exit(1);
+					});
+			}
+			// The size changed: re-allocate the screen-sized textures and
+			// reconfigure the surface, keeping the pipelines.
+			RendererState::NeedsResize => {
+				if let Err(err) = output.resize(size) {
+					error!("Failed to resize the renderer to {:?}: {}", size, err);
+				}
+			}
+			// Duplicate configure for the size we are already at.
+			RendererState::UpToDate => {}
+		}
+
+		self.queue_render_all(qh);
 	}
 }
