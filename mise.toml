@@ -25,6 +25,20 @@ alias = 'rd'
 run = 'cargo run --bin wgpaper-daemon-http --release'
 alias = 'rdr'
 
+[tasks.run-daemon-sway]
+usage = '''
+arg "<output_count>" default="1"
+'''
+run = 'WGPAPER_PROJECT_COMMAND="mise rd" WLR_WL_OUTPUTS=${usage_output_count} sway -c sway-config.sh'
+alias = 'rds'
+
+[tasks.run-daemon-sway-release]
+usage = '''
+arg "<output_count>" default="1"
+'''
+run = 'WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c sway-config.sh'
+alias = 'rdsr'
+
 [tasks.fmt]
 run = 'cargo fmt'
 alias = 'f'
