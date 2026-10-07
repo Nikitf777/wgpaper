@@ -1,10 +1,6 @@
 use crate::server::server;
 use lib_wgpaper_daemon::app::manager::SctkManager;
 use log::{error, info, warn};
-use signal_hook::{
-	consts::{SIGINT, SIGTERM},
-	iterator::Signals,
-};
 use std::sync::{Arc, Mutex};
 use wgpaper_config::Config;
 
@@ -42,16 +38,45 @@ async fn main() -> std::io::Result<()> {
 	});
 	let server_handle = server.handle();
 
-	let mut signals = Signals::new([SIGINT, SIGTERM])?;
+	// `signal_hook`'s iterator is blocking, which would starve every other task on
+// the single-threaded actix runtime, hence tokio's async signal API.
+	let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+	let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+	tokio::spawn({
+		let handle = server_handle.clone();
+		async move {
+			sigint.recv().await;
+			info!("SIGINT received. Stopping HTTP server gracefully.");
+			handle.stop(true).await;
+		}
+	});
+	tokio::spawn({
+		let handle = server_handle.clone();
+		async move {
+			sigterm.recv().await;
+			info!("SIGTERM received. Stopping HTTP server gracefully.");
+			handle.stop(true).await;
+		}
+	});
+
+	// The SCTK thread dies together with its compositor. Without this the daemon
+	// would linger forever, serving requests it can no longer fulfil.
+	let watched_manager = post_server_sctk_manager.clone();
 	tokio::spawn(async move {
-		for sig in signals.forever() {
-			let sig_name = match sig {
-				SIGINT => "SIGINT",
-				SIGTERM => "SIGTERM",
-				_ => "UNKNOWN SIGNAL",
-			};
-			info!("{} received. Stopping HTTP server gracefully.", sig_name);
-			server_handle.stop(true).await;
+		let mut ticker = tokio::time::interval(std::time::Duration::from_millis(500));
+		loop {
+			ticker.tick().await;
+			// `try_lock` keeps the handlers from being blocked by this check.
+			let is_finished = watched_manager
+				.try_lock()
+				.map(|manager| manager.is_finished())
+				.unwrap_or(false);
+
+			if is_finished {
+				warn!("The compositor is gone. Stopping HTTP server gracefully.");
+				server_handle.stop(true).await;
+				return;
+			}
 		}
 	});
 

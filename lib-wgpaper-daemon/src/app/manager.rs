@@ -76,6 +76,11 @@ impl SctkManager {
 		self.communicator.shutdown()
 	}
 
+	/// Whether the compositor connection is gone (the SCTK thread has exited).
+	pub fn is_finished(&self) -> bool {
+		self.communicator.is_finished()
+	}
+
 	pub fn start_transition_all_random(&mut self) -> anyhow::Result<()> {
 		match self
 			.next_image

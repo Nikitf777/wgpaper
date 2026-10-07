@@ -1,6 +1,6 @@
 use crate::{Commands, LaunchOptions, image_wrapper::ImageWrapper, start};
 use calloop::channel::{Sender, channel};
-use log::{debug, info};
+use log::{debug, error, info};
 use std::thread::{self, JoinHandle};
 
 pub struct SctkCommunicator {
@@ -12,13 +12,25 @@ impl SctkCommunicator {
 	pub fn new(options: LaunchOptions) -> Self {
 		let (sender, channel) = channel::<Commands>();
 		let handle = thread::spawn(move || {
-			start(channel, options).unwrap();
+			// The event loop returns when the compositor goes away, which must
+			// not be a panic: the daemon is expected to notice and shut down.
+			if let Err(err) = start(channel, options) {
+				error!("The SCTK event loop stopped: {:?}", err);
+			}
 		});
 
 		Self {
 			sender,
 			sctk_thread: Some(handle),
 		}
+	}
+
+	/// Whether the SCTK thread is gone, i.e. the compositor is no longer there.
+	pub fn is_finished(&self) -> bool {
+		self.sctk_thread
+			.as_ref()
+			.map(thread::JoinHandle::is_finished)
+			.unwrap_or(true)
 	}
 
 	pub fn shutdown(&mut self) -> anyhow::Result<()> {
