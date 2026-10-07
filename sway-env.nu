@@ -26,6 +26,19 @@ def keep [name: string] {
   $name in $KEEP_EXACT or ($KEEP_PREFIXES | any {|prefix| $name | str starts-with $prefix })
 }
 
+# The name of an env dump line, or nothing when the line is not `NAME=VALUE`.
+def line-key [line: string] {
+  let sep = $line | str index-of '='
+  if $sep == null { null } else { $line | str substring 0..<$sep }
+}
+
+# Kept lines as `NAME=VALUE` pairs, i.e. ready to be handed to `env`.
+def keep-lines [dump: string] {
+  $dump
+  | lines
+  | where {|line| keep (line-key $line | default '')}
+}
+
 # nu values into plain strings: `PATH` can be a list, a `null` argument to nothing.
 def stringify [value: any] {
   match ($value | describe) {
@@ -61,13 +74,35 @@ def main [...args: any] {
   }
 
   # `env` output lines are already `KEY=VALUE`, so they are passed on as-is.
-  let session_env = (
-    $env_dump
-    | lines
-    | each {|line| {line: $line, key: ($line | split row '=' | first)}}
-    | where {|entry| keep $entry.key}
-    | get line
+  let session_env = keep-lines $env_dump
+
+  # The env dump outlives the compositor, so check the socket it points to.
+  let session = (
+    $session_env
+    | reduce --fold {} {|line, acc|
+        let sep = $line | str index-of '='
+        $acc | upsert ($line | str substring 0..<$sep) ($line | str substring ($sep + 1)..)
+      }
   )
+
+  let socket = (
+    $session | get --optional SWAYSOCK
+    | default ($session | get --optional WAYLAND_SOCKET)
+    | default (do {
+      let display = $session | get --optional WAYLAND_DISPLAY
+      let runtime = $session | get --optional XDG_RUNTIME_DIR
+      if $display != null and $runtime != null { $runtime | path join $display } else { null }
+    })
+  )
+
+  let alive = if $socket == null { true } else { $socket | path exists }
+
+  if $alive == false {
+    # No parentheses in interpolated strings: `(` opens an interpolation.
+    print --stderr $"sway-exec: the session in ($env_file) is gone, no socket at ($socket)"
+    print --stderr 'start a new one (mise rsds) or clean up (mise clean)'
+    exit 1
+  }
 
   let base_env = [
     $"PATH=(stringify (env-or 'PATH' '/usr/bin'))"

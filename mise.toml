@@ -30,14 +30,16 @@ alias = 'rdr'
 usage = '''
 arg "<output_count>" default="1"
 '''
-run = 'WGPAPER_PROJECT_COMMAND="mise rd" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
+# mise has no `pattern`/`choices` for args, so the count is validated here:
+# a bogus value is accepted by wlroots and yields a half-broken session.
+run = 'case "${usage_output_count}" in (""|*[!0-9]*) echo "rds: output count must be a positive number, got: ${usage_output_count}" >&2; exit 2;; esac; WGPAPER_PROJECT_COMMAND="mise rd" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
 alias = 'rds'
 
 [tasks.run-daemon-sway-release]
 usage = '''
 arg "<output_count>" default="1"
 '''
-run = 'WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
+run = 'case "${usage_output_count}" in (""|*[!0-9]*) echo "rdsr: output count must be a positive number, got: ${usage_output_count}" >&2; exit 2;; esac; WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
 alias = 'rdsr'
 
 [tasks.sway-exec]
@@ -60,7 +62,9 @@ usage = '''
 arg "<unit_name>"
 arg "<command>" var=#true
 '''
-run = 'mise rfs ${usage_unit_name} || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
+# `reset-failed` is a no-op when the unit was never loaded, but through a nested
+# `mise` task that still prints an ERROR line, hence the direct systemctl call.
+run = 'systemctl --user reset-failed ${usage_unit_name} >/dev/null 2>&1 || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
 alias = 'rs'
 
 [tasks.systemd-logs]
@@ -197,6 +201,30 @@ arg "<unit_name>" default="wgpaper-rdsr"
 '''
 run = 'mise ss ${usage_unit_name}'
 alias = 'ssdsr'
+
+[tasks.list-units]
+# Transient units vanish once they finish, so this is the only way to tell
+# which session is actually still running.
+run = 'systemctl --user list-units --all --no-pager "wgpaper-*" || true'
+alias = 'lu'
+
+[tasks.kill-daemons]
+# A killed compositor leaves its daemon behind: the daemon logs a broken pipe
+# and keeps serving. `-x` matches the process name, so this task cannot kill
+# itself, and the name is truncated to 15 characters by the kernel.
+run = 'pkill -x wgpaper-daemon- && echo "killed stray daemons" || echo "no stray daemons"'
+alias = 'kd'
+
+[tasks.cleanup]
+# The one command that gets rid of everything a session can leave behind:
+# transient units, orphaned daemons and the stale sway env dump.
+run = '''
+units=$(systemctl --user list-units --all --plain --no-legend "wgpaper-*" | awk '{print $1}')
+if [ -n "$units" ]; then echo "stopping units: $units"; systemctl --user stop $units || true; else echo "no wgpaper units running"; fi
+pkill -x wgpaper-daemon- && echo "killed stray daemons" || echo "no stray daemons"
+rm -f "${WGPAPER_SWAY_ENV_FILE:-${XDG_RUNTIME_DIR:-/tmp}/wgpaper-sway.env}" && echo "removed the sway env file"
+'''
+alias = 'clean'
 
 [tasks.fmt]
 run = 'cargo fmt'
