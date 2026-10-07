@@ -43,8 +43,9 @@ alias = 'rdsr'
 [tasks.sway-exec]
 # No `usage` spec on purpose: mise then forwards the arguments verbatim.
 # With a spec, ${usage_command} is interpolated into a shell string, which
-# mangles quotes and whitespace.
-run = './sway-env.sh'
+# mangles quotes and whitespace. The `--` stops nu from parsing flags of the
+# command that is to be run (e.g. `mise sx -- ls -l`).
+run = 'nu sway-env.nu --'
 alias = 'sx'
 
 [tasks.reset-failed-systemd]
