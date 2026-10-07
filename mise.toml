@@ -52,6 +52,7 @@ usage = '''
 arg "<unit_name>"
 arg "<command>" var=#true
 '''
+
 run = 'systemctl --user reset-failed ${usage_unit_name} || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
 alias = 'rs'
 
@@ -59,7 +60,7 @@ alias = 'rs'
 usage = '''
 arg "<unit_name>"
 '''
-run = 'journalctl --user -t ${usage_unit_name}'
+run = 'journalctl --user -t ${usage_unit_name}' # Apparently, `journalctl --user -u <unit_name>` is not a correct filter on some systems, so we use an identifier.
 alias = 'sl'
 
 [tasks.status-systemd]

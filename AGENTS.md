@@ -35,7 +35,8 @@ The project uses the `mise` task runner. Use `mise run <task>` to run a task. Th
 To test a wl-roots compositor and multi-monitor setups use the `-sway <output_count(default=1)>` tasks, like this one:
 - `run-daemon-sway`
 To run an arbitrary commands against a running nested Sway session, use `mise sway-exec <command>`.
-There are also tasks to run in the background using `systemd-run`:
+Sway was chosen because it is very lightweight, supports the layer shell protocol, allows to launch with multiple outputs and manage them at runtime.
+There are also tasks to run commands in the background using `systemd-run`:
 - `run-systemd-daemon[-sway]`
 - `systemd-daemon[-sway]-logs`
 - `status-systemd-daemon[-sway]`
