@@ -42,6 +42,7 @@ There are also tasks to run commands in the background using `systemd-run`:
 - `status-systemd-daemon[-sway]`
 - `stop-systemd-daemon[-sway]`
 To run an arbitrary command via `systemd-run`, use `mise run-systemd <unit_name> <command>`.
+To reset a unit, use `mise reset-failed-systemd <unit_name>`.
 Use `mise task` to lists all the available tasks and `mise task info <task>` to see its arguments and other details.
 
 The project mostly relies on the Jujutsu VCS, so Git is likely to be in a detached state.

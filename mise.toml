@@ -47,13 +47,19 @@ alias = 'rdsr'
 run = './sway-env.sh'
 alias = 'sx'
 
+[tasks.reset-failed-systemd]
+usage = '''
+arg "<unit_name>"
+'''
+run = 'systemctl --user reset-failed ${usage_unit_name}'
+alias = 'rfs'
+
 [tasks.run-systemd]
 usage = '''
 arg "<unit_name>"
 arg "<command>" var=#true
 '''
-
-run = 'systemctl --user reset-failed ${usage_unit_name} || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
+run = 'mise rfs ${usage_unit_name} || true; systemd-run --user -d -E WAYLAND_DISPLAY=$WAYLAND_DISPLAY -p SyslogIdentifier=${usage_unit_name} -u ${usage_unit_name} ${usage_command}'
 alias = 'rs'
 
 [tasks.systemd-logs]
