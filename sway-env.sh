@@ -2,7 +2,7 @@
 # Run a command inside the environment of the nested Sway session.
 #
 # The nested session dumps its own environment to a file on startup (see
-# sway-config.sh). This helper re-uses the session-identifying variables from
+# sway-config). This helper re-uses the session-identifying variables from
 # that file so that Wayland clients connect to the nested compositor.
 set -euo pipefail
 
