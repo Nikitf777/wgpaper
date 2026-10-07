@@ -1,5 +1,6 @@
 [env]
 RUST_LOG = 'debug'
+SWAY_CONFIG = 'sway-config'
 
 [tasks.build]
 run = 'cargo build'
@@ -29,15 +30,22 @@ alias = 'rdr'
 usage = '''
 arg "<output_count>" default="1"
 '''
-run = 'WGPAPER_PROJECT_COMMAND="mise rd" WLR_WL_OUTPUTS=${usage_output_count} sway -c sway-config.sh'
+run = 'WGPAPER_PROJECT_COMMAND="mise rd" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
 alias = 'rds'
 
 [tasks.run-daemon-sway-release]
 usage = '''
 arg "<output_count>" default="1"
 '''
-run = 'WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c sway-config.sh'
+run = 'WGPAPER_PROJECT_COMMAND="mise rdr" WLR_WL_OUTPUTS=${usage_output_count} sway -c $SWAY_CONFIG'
 alias = 'rdsr'
+
+[tasks.sway-exec]
+# No `usage` spec on purpose: mise then forwards the arguments verbatim.
+# With a spec, ${usage_command} is interpolated into a shell string, which
+# mangles quotes and whitespace.
+run = './sway-env.sh'
+alias = 'sx'
 
 [tasks.run-systemd]
 usage = '''

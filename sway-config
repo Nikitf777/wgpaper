@@ -1,0 +1,4 @@
+exec env > "${WGPAPER_SWAY_ENV_FILE:-$XDG_RUNTIME_DIR/wgpaper-sway.env}"
+exec $WGPAPER_PROJECT_COMMAND
+
+for_window [all] floating enable

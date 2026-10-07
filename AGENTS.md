@@ -34,12 +34,13 @@ The project uses the `mise` task runner. Use `mise run <task>` to run a task. Th
 - `test` (no tests yet, need to add some)
 To test a wl-roots compositor and multi-monitor setups use the `-sway <output_count(default=1)>` tasks, like this one:
 - `run-daemon-sway`
+To run an arbitrary commands against a running nested Sway session, use `mise sway-exec <command>`.
 There are also tasks to run in the background using `systemd-run`:
 - `run-systemd-daemon[-sway]`
 - `systemd-daemon[-sway]-logs`
 - `status-systemd-daemon[-sway]`
 - `stop-systemd-daemon[-sway]`
-
+To run an arbitrary command via `systemd-run`, use `mise run-systemd <unit_name> <command>`.
 Use `mise task` to lists all the available tasks and `mise task info <task>` to see its arguments and other details.
 
 The project mostly relies on the Jujutsu VCS, so Git is likely to be in a detached state.
