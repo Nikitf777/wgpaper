@@ -8,6 +8,7 @@ A Wayland (wl-roots) wallpaper utility that supports transition effects with ove
 - [ ] - expose various random seeds to shaders (per-frame, per-transition, per-output)
 - [ ] - expose mouse position to shaders
 - [ ] - the ability to start a transition effect on each output independently
+- [ ] - the ability to specify an image to start transition to in a request
 - [ ] - per-output wallpaper confuration
 - [ ] - the ability to specify multiple shaders
 - [ ] - per-output shaders
