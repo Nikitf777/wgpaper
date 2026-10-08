@@ -9,8 +9,8 @@ pub fn server(sctk_manager: Arc<Mutex<SctkManager>>) -> std::io::Result<Server> 
 		App::new()
 			.app_data(web::Data::from(sctk_manager.clone()))
 			.service(
-				web::scope("/transition")
-					.route("/start", web::post().to(handlers::start_transition)),
+				web::scope("/outputs")
+					.route("/transition", web::post().to(handlers::start_transition)),
 			)
 	})
 	.workers(1)
