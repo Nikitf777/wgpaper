@@ -6,6 +6,7 @@ use raw_window_handle::{
 };
 use smithay_client_toolkit::shell::{WaylandSurface, wlr_layer::LayerSurface};
 use wayland_client::{Connection, Proxy};
+use wgpaper_abi::Vec4;
 use wgpaper_config::{Background, ScalingMode};
 use wgpu::{
 	AddressMode, BindGroup, Color, CommandEncoder, CommandEncoderDescriptor, Device, FilterMode,
@@ -38,17 +39,20 @@ pub fn create_surface<'a>(
 
 /// Colour painted behind the wallpaper for the modes that letterbox it
 /// (`Fit` / `Center`).  Modes that fill the screen ignore it.
-pub fn bg_color_for(scaling_mode: &ScalingMode) -> csscolorparser::Color {
-	match scaling_mode {
-		ScalingMode::Fit { background } | ScalingMode::Center { background } => {
-			if let Background::CssColor(color) = background {
-				color.clone()
-			} else {
-				csscolorparser::Color::default()
-			}
-		}
+///
+/// Converted to a `Vec4` here so the caller can hand it straight to the shared
+/// uniform block; the previous code `transmute`d a `csscolorparser::Color`
+/// into `[f32; 4]`, which relied on that type's field order.
+pub fn bg_color_for(scaling_mode: &ScalingMode) -> Vec4 {
+	let color = match scaling_mode {
+		ScalingMode::Fit { background } | ScalingMode::Center { background } => match background {
+			Background::CssColor(color) => color.clone(),
+			_ => csscolorparser::Color::default(),
+		},
 		ScalingMode::Stretch | ScalingMode::Cover => csscolorparser::Color::default(),
-	}
+	};
+
+	Vec4::new(color.r, color.g, color.b, color.a)
 }
 
 /// Give a freshly allocated texture defined contents without any CPU-side

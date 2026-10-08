@@ -1,75 +1,16 @@
+//! Host-side ownership of the shared uniform block.
+//!
+//! The block itself is declared once, in `wgpaper-abi`. This module owns the
+//! GPU-side buffer and the bind group, and forwards every mutation to the ABI
+//! type so the host can never disagree with the shaders about the layout.
+
 use crate::transition::TransitionProgress;
+use wgpaper_abi::{PerFrameDataUniform, Vec2, Vec4};
 use wgpu::{
 	BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry,
 	BindingType, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferSize,
 	BufferUsages, Device, Queue, ShaderStages,
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct PerFrameDataUniform {
-	virtual_screen_size: [f32; 2],
-	screen_size: [f32; 2],
-	texture_size: [f32; 2],
-	virtual_screen_aspect: f32,
-	screen_aspect: f32,
-	texture_aspect: f32,
-	// Two separate f32s (not [f32; 2] / Vec2) so this struct matches
-	// the WGSL / SPIR-V ABI at the byte level without alignment gaps.
-	progress_bezier: f32,
-	progress_linear: f32,
-	// Explicit padding: WGSL var<uniform> requires vec4 align 16,
-	// so bg_color must start at offset 48, not 44.
-	_pad_to_bg_color: [u8; 4],
-	bg_color: [f32; 4],
-	_padding: [u32; 53],
-}
-
-impl PerFrameDataUniform {
-	fn new(
-		global_screen_size: (f32, f32),
-		screen_size: (f32, f32),
-		texture_size: (f32, f32),
-		progress: TransitionProgress,
-		bg_color: csscolorparser::Color,
-	) -> Self {
-		Self {
-			virtual_screen_size: [global_screen_size.0, global_screen_size.1],
-			screen_size: [screen_size.0, screen_size.1],
-			texture_size: [texture_size.0, texture_size.1],
-			virtual_screen_aspect: global_screen_size.0 / global_screen_size.1,
-			screen_aspect: screen_size.0 / screen_size.1,
-			texture_aspect: texture_size.0 / texture_size.1,
-			progress_bezier: progress.progress_bezier,
-			progress_linear: progress.progress_linear,
-			_pad_to_bg_color: [0u8; 4],
-			bg_color: unsafe { std::mem::transmute(bg_color) },
-			_padding: [0u32; 53],
-		}
-	}
-
-	fn transition_progress(&self) -> TransitionProgress {
-		TransitionProgress {
-			progress_bezier: self.progress_bezier,
-			progress_linear: self.progress_linear,
-		}
-	}
-
-	fn update_screen_size(&mut self, new_size: (f32, f32)) {
-		self.screen_size = [new_size.0, new_size.1];
-		self.screen_aspect = new_size.0 / new_size.1;
-	}
-
-	fn update_texture_size(&mut self, new_size: (f32, f32)) {
-		self.texture_size = [new_size.0, new_size.1];
-		self.texture_aspect = new_size.0 / new_size.1;
-	}
-
-	fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
-		self.progress_bezier = new_progress.progress_bezier;
-		self.progress_linear = new_progress.progress_linear;
-	}
-}
 
 fn write_per_frame_data(data: &PerFrameDataUniform, queue: &Queue, buffer: &Buffer) {
 	queue.write_buffer(buffer, 0, bytemuck::bytes_of(data));
@@ -84,7 +25,9 @@ pub fn per_frame_bind_group_layout(device: &Device) -> BindGroupLayout {
 			ty: BindingType::Buffer {
 				ty: BufferBindingType::Uniform,
 				has_dynamic_offset: false,
-				min_binding_size: BufferSize::new(256),
+				// Sourced from the ABI crate, so the minimum a shader can
+				// declare always matches the struct the host writes.
+				min_binding_size: BufferSize::new(PerFrameDataUniform::SIZE as BufferAddress),
 			},
 			count: None,
 		}],
@@ -92,6 +35,21 @@ pub fn per_frame_bind_group_layout(device: &Device) -> BindGroupLayout {
 	})
 }
 
+fn create_uniform_buffer(device: &Device) -> Buffer {
+	device.create_buffer(&BufferDescriptor {
+		label: Some("per_frame_data_uniform_buffer"),
+		size: PerFrameDataUniform::SIZE as BufferAddress,
+		usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+		mapped_at_creation: false,
+	})
+}
+
+/// Owns one surface's uniform buffer and bind group.
+///
+/// The struct is *not* padded out to the old 256-byte minimum binding size.
+/// The block is 64 bytes and is now allocated at exactly its own size, with
+/// `min_binding_size` derived from the same constant, so the two can no longer
+/// drift apart.
 pub struct PerFrameUniformManager {
 	data: PerFrameDataUniform,
 	buffer: Buffer,
@@ -99,62 +57,26 @@ pub struct PerFrameUniformManager {
 }
 
 impl PerFrameUniformManager {
-	/// Create a `PerFrameUniformManager` and return it together with the
-	/// newly created bind-group layout.
+	/// Create a `PerFrameUniformManager`, creating its own bind-group layout.
 	///
 	/// Prefer [`with_layout`](Self::with_layout) when the layout is already
 	/// available (e.g. from a shared device-level cache).
+	#[allow(dead_code)]
 	pub fn new(
 		device: &wgpu::Device,
-		screen_size: (f32, f32),
-		texture_size: (f32, f32),
-		bg_color: csscolorparser::Color,
+		screen_size: Vec2,
+		texture_size: Vec2,
+		bg_color: Vec4,
 	) -> (Self, BindGroupLayout) {
-		let buffer = device.create_buffer(&BufferDescriptor {
-			label: Some("per_frame_data_uniform_buffer"),
-			size: std::mem::size_of::<PerFrameDataUniform>() as BufferAddress,
-			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
-		let data = PerFrameDataUniform::new(
-			(screen_size.0, screen_size.1),
-			(screen_size.0, screen_size.1),
-			(texture_size.0, texture_size.1),
-			TransitionProgress::reset(),
+		let bind_group_layout = per_frame_bind_group_layout(device);
+		let manager = Self::with_layout(
+			device,
+			&bind_group_layout,
+			screen_size,
+			texture_size,
 			bg_color,
 		);
-
-		let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			entries: &[BindGroupLayoutEntry {
-				binding: 0,
-				visibility: ShaderStages::FRAGMENT,
-				ty: BindingType::Buffer {
-					ty: BufferBindingType::Uniform,
-					has_dynamic_offset: false,
-					min_binding_size: BufferSize::new(256),
-				},
-				count: None,
-			}],
-			label: Some("per_frame_data_bind_group_layout"),
-		});
-
-		let bind_group = device.create_bind_group(&BindGroupDescriptor {
-			layout: &bind_group_layout,
-			entries: &[BindGroupEntry {
-				binding: 0,
-				resource: buffer.as_entire_binding(),
-			}],
-			label: Some("per_frame_data_bind_group"),
-		});
-
-		(
-			Self {
-				data,
-				buffer,
-				bind_group,
-			},
-			bind_group_layout,
-		)
+		(manager, bind_group_layout)
 	}
 
 	/// Create a `PerFrameUniformManager` reusing an existing layout.
@@ -164,22 +86,21 @@ impl PerFrameUniformManager {
 	pub fn with_layout(
 		device: &wgpu::Device,
 		bind_group_layout: &BindGroupLayout,
-		screen_size: (f32, f32),
-		texture_size: (f32, f32),
-		bg_color: csscolorparser::Color,
+		screen_size: Vec2,
+		texture_size: Vec2,
+		bg_color: Vec4,
 	) -> Self {
-		let buffer = device.create_buffer(&BufferDescriptor {
-			label: Some("per_frame_data_uniform_buffer"),
-			size: std::mem::size_of::<PerFrameDataUniform>() as BufferAddress,
-			usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		});
+		let buffer = create_uniform_buffer(device);
+
+		// `virtual_screen_size` is currently the same value as `screen_size`:
+		// the single-canvas mode that would distinguish them is not
+		// implemented. See the field's docs in `wgpaper-abi`.
 		let data = PerFrameDataUniform::new(
-			(screen_size.0, screen_size.1),
-			(screen_size.0, screen_size.1),
-			(texture_size.0, texture_size.1),
-			TransitionProgress::reset(),
+			screen_size,
+			screen_size,
+			texture_size,
 			bg_color,
+			TransitionProgress::reset(),
 		);
 
 		let bind_group = device.create_bind_group(&BindGroupDescriptor {
@@ -198,6 +119,10 @@ impl PerFrameUniformManager {
 		}
 	}
 
+	/// Push the in-memory block to the GPU.
+	///
+	/// This is the only thing that makes a mutation visible to a shader, so it
+	/// must follow every `update_*` call.
 	pub fn write_data(&self, queue: &Queue) {
 		write_per_frame_data(&self.data, queue, &self.buffer);
 	}
@@ -210,15 +135,33 @@ impl PerFrameUniformManager {
 		&self.bind_group
 	}
 
-	pub fn update_screen_size(&mut self, new_size: (f32, f32)) {
+	pub fn update_screen_size(&mut self, new_size: Vec2) {
 		self.data.update_screen_size(new_size);
 	}
 
-	pub fn update_texture_size(&mut self, new_size: (f32, f32)) {
+	pub fn update_texture_size(&mut self, new_size: Vec2) {
 		self.data.update_texture_size(new_size);
 	}
 
 	pub fn update_transition_progress(&mut self, new_progress: TransitionProgress) {
 		self.data.update_transition_progress(new_progress);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// The old code declared `min_binding_size: 256` and carried 53 `u32`s of
+	/// trailing padding to satisfy it. The block is only 64 bytes, and the
+	/// layout now derives its minimum from the struct, so nothing needs to
+	/// reconcile a magic number any more.
+	#[test]
+	fn binding_size_is_derived_from_the_block() {
+		assert_eq!(PerFrameDataUniform::SIZE, 64);
+		assert_eq!(
+			BufferSize::new(PerFrameDataUniform::SIZE as BufferAddress),
+			BufferSize::new(64)
+		);
 	}
 }

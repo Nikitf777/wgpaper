@@ -39,7 +39,7 @@ async fn main() -> std::io::Result<()> {
 	let server_handle = server.handle();
 
 	// `signal_hook`'s iterator is blocking, which would starve every other task on
-// the single-threaded actix runtime, hence tokio's async signal API.
+	// the single-threaded actix runtime, hence tokio's async signal API.
 	let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
 	let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 	tokio::spawn({

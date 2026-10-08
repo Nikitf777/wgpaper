@@ -1,0 +1,33 @@
+[package]
+name = "wgpaper-abi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+# Compiled twice: once for the host (std) and once for `spirv` by
+# `spirv-builder`, which compiles `wgpaper-shaders` and everything it
+# depends on for the SPIR-V target.  Keep this crate free of anything that
+# cannot build for `spirv-unknown-vulkan1.1`.
+crate-type = ["lib"]
+
+[lints]
+workspace = true
+
+# `bytemuck` is only needed to hand the struct to `wgpu::Queue::write_buffer`
+# on the host; the SPIR-V build never touches it.
+[target.'cfg(not(target_arch = "spirv"))'.dependencies]
+bytemuck = "1.24.0"
+
+# Mirror the split `spirv-std` itself uses: `std` on the host, `libm` on the
+# shader target.  `scalar-math` is deliberately left off -- see the layout
+# assertions in `src/lib.rs` for why that matters.
+[target.'cfg(not(target_arch = "spirv"))'.dependencies.glam]
+version = "0.33.2"
+default-features = false
+features = ["std"]
+
+[target.'cfg(target_arch = "spirv")'.dependencies.glam]
+version = "0.33.2"
+default-features = false
+features = ["libm"]

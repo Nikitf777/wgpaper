@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use wgpaper_abi::Vec2;
 use wgpaper_config::ScalingMode;
 use wgpu::{
 	Origin3d, Sampler, Surface, SurfaceConfiguration, SurfaceError, TexelCopyTextureInfo,
@@ -89,13 +90,16 @@ impl SurfaceRenderer {
 		let sampler = device.choose_sampler(&scaling_mode).clone();
 
 		// ── per-frame uniforms ───────────────────────────────────────
+		let screen_size = Vec2::new(size.0 as f32, size.1 as f32);
+		let texture_size = initial_image
+			.map(|image| Vec2::new(image.width() as f32, image.height() as f32))
+			.unwrap_or(screen_size);
+
 		let mut per_frame_uniform_manager = PerFrameUniformManager::with_layout(
 			&device.device,
 			&device.per_frame_bind_group_layout,
-			(size.0 as f32, size.1 as f32),
-			initial_image
-				.map(|image| (image.width() as f32, image.height() as f32))
-				.unwrap_or((size.0 as f32, size.1 as f32)),
+			screen_size,
+			texture_size,
 			wgpu_utilities::bg_color_for(&scaling_mode),
 		);
 		// `write_data` must come after every field update: it is the only
@@ -286,7 +290,7 @@ impl SurfaceRenderer {
 		self.config.height = size.1;
 		self.surface.configure(&self.device.device, &self.config);
 		self.per_frame_uniform_manager
-			.update_screen_size((size.0 as f32, size.1 as f32));
+			.update_screen_size(Vec2::new(size.0 as f32, size.1 as f32));
 
 		// The bind group still references the texture views that were just
 		// dropped, so it has to be rebuilt against the new ones.
@@ -313,7 +317,7 @@ impl SurfaceRenderer {
 	/// and the newly scaled wallpaper.
 	pub fn set_next_image_size(&mut self, image: &ImageWrapper) {
 		self.per_frame_uniform_manager
-			.update_texture_size((image.width() as f32, image.height() as f32));
+			.update_texture_size(Vec2::new(image.width() as f32, image.height() as f32));
 	}
 
 	/// Return the current transition progress.

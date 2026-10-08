@@ -2,10 +2,20 @@
 resolver = "3"
 members = [
 	"lib-wgpaper-daemon",
+	"wgpaper-abi",
 	"wgpaper-config",
 	"wgpaper-daemon-http",
 	"wgpaper-shaders",
 ]
+
+[workspace.lints.rust]
+# `spirv` is a real `target_arch`, but it is only known to the rust-gpu fork of
+# rustc, so stock rustc's `--check-cfg` does not list it and warns about every
+# use. Teaching the checker the value keeps `unexpected_cfgs` useful for cfg
+# names that really are wrong, rather than silencing the lint wholesale.
+#
+# Crates that target the SPIR-V backend opt in with `[lints] workspace = true`.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_arch, values("spirv"))'] }
 
 [workspace.dependencies]
 anyhow = "1.0.100"

@@ -3,31 +3,11 @@ use std::time::{Duration, Instant};
 
 /// A point in time along a transition animation.
 ///
-/// Trivial pair of `f32`s, so it is `Copy` — this lets callers keep using
-/// `progress` after handing it off to a renderer.
-#[derive(Debug, Clone, Copy)]
-pub struct TransitionProgress {
-	pub progress_bezier: f32,
-	pub progress_linear: f32,
-}
-
-impl TransitionProgress {
-	pub fn reset() -> Self {
-		Self {
-			progress_bezier: 0.0,
-			progress_linear: 0.0,
-		}
-	}
-	pub fn finished() -> Self {
-		Self {
-			progress_bezier: 1.0,
-			progress_linear: 1.0,
-		}
-	}
-	pub fn is_finished(&self) -> bool {
-		self.progress_bezier == 1.0 && self.progress_linear >= 1.0
-	}
-}
+/// Re-exported from `wgpaper-abi` rather than declared here: this pair of
+/// `f32`s *is* the wire format (`progress_bezier` / `progress_linear` in the
+/// shared uniform block), so the type the host computes with and the type the
+/// shaders read must be the same one.
+pub use wgpaper_abi::TransitionProgress;
 
 pub struct Transition {
 	sequence: AnimationSequence<f32>,

@@ -7,9 +7,13 @@ publish = false
 [lib]
 crate-type = ["lib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 spirv-std = { workspace = true }
 glam = { version = "0.33.2", default-features = false, features = ["libm"] }
+wgpaper-abi = { path = "../wgpaper-abi" }
 
 [package.metadata.release]
 release = false

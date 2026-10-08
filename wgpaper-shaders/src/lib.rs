@@ -6,40 +6,14 @@
 
 #![cfg_attr(target_arch = "spirv", no_std)]
 
-use spirv_std::glam::{Vec2, Vec4, vec2};
 use spirv_std::image::Image2d;
 use spirv_std::{Sampler, spirv};
 
-// ── shared uniform data ───────────────────────────────────────────────
-// Must match `PerFrameDataUniform` in `wgpu_uniforms.rs` byte-for-byte.
-//
-// NOTE: we use `Vec2` / `Vec4` instead of `[f32; 2]` / `[f32; 4]` because
-// Vulkan uniform-buffer layout rules require array alignment ≥ 16, while
-// the natural stride of `[f32; 2]` is only 4.  `Vec2` / `Vec4` are structs
-// with proper alignment (8 / 16 bytes) and satisfy the standard rules.
-
-#[repr(C)]
-pub struct PerFrameDataUniform {
-	pub virtual_screen_size: Vec2,
-	pub screen_size: Vec2,
-	pub texture_size: Vec2,
-	pub virtual_screen_aspect: f32,
-	pub screen_aspect: f32,
-	pub texture_aspect: f32,
-	// Two separate f32s (not Vec2) to keep the same byte layout as the
-	// original WGSL ABI — custom WGSL transition shaders read these as
-	// `progress_bezier: f32` and `progress_linear: f32`.
-	pub progress_bezier: f32,
-	pub progress_linear: f32,
-	// Explicit padding: WGSL var<uniform> requires vec4 align 16, so
-	// bg_color must start at offset 48, not 44.
-	pub _pad_to_bg_color: u32,
-	pub bg_color: Vec4,
-}
-// NOTE: only the fields above are read by the shader.  The host-side
-// (Rust) buffer is larger (includes `_padding: [u32; 53]`) to satisfy
-// wgpu's `min_binding_size: 256` constraint; those trailing bytes are
-// simply ignored by the GPU.
+// The uniform block is declared once, in `wgpaper-abi`, and imported here.
+// `spirv_std::glam` and `wgpaper_abi::glam` resolve to the same crate, so the
+// `Vec2`/`Vec4` in the block are the same types used throughout these shaders.
+use wgpaper_abi::PerFrameDataUniform;
+use wgpaper_abi::glam::{Vec2, Vec4, vec2};
 
 // ── vertex shader (full‑screen triangle) ──────────────────────────────
 
