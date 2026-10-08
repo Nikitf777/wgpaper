@@ -320,11 +320,6 @@ impl SurfaceRenderer {
 			.update_texture_size(Vec2::new(image.width() as f32, image.height() as f32));
 	}
 
-	/// Return the current transition progress.
-	pub fn get_transition_progress(&self) -> TransitionProgress {
-		self.per_frame_uniform_manager.transition_progress()
-	}
-
 	/// Update the transition progress and write it to the GPU buffer.
 	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
 		self.per_frame_uniform_manager

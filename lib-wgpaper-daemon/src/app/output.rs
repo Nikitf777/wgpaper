@@ -5,7 +5,7 @@ use crate::{
 		RendererOptions,
 		wgpu::{wgpu_render_manager::RenderManager, wgpu_surface::SurfaceRenderer},
 	},
-	transition::TransitionProgress,
+	transition::{ActiveTransition, TransitionProgress},
 };
 use anyhow::{Context, Ok};
 use log::{error, warn};
@@ -33,6 +33,12 @@ pub struct OutputStateEntry {
 	/// Size the renderer was last built or resized for.  Meaningless while
 	/// `renderer` is `None`.
 	current_size: (u32, u32),
+	/// This output's own transition clock.
+	///
+	/// Owning it here rather than in `WallpaperState` is what lets each output
+	/// animate independently: starting, ending or being resized affects only
+	/// this output.
+	transition: ActiveTransition,
 }
 
 /// What a layer-surface configure means for an output's renderer.
@@ -57,6 +63,7 @@ impl OutputStateEntry {
 			layer,
 			renderer: None,
 			current_size: (0, 0),
+			transition: ActiveTransition::default(),
 		}
 	}
 
@@ -101,6 +108,12 @@ impl OutputStateEntry {
 		let renderer = render_manager.create_surface(conn, &self.layer, size, options)?;
 		self.renderer = Some(renderer);
 		self.current_size = size;
+
+		// A freshly built renderer starts at `finished()`, so there is no
+		// animation for a clock to drive.  Without this an output whose
+		// renderer is built mid-transition would keep re-arming frame
+		// callbacks for a transition it cannot display.
+		self.transition.stop();
 		Ok(())
 	}
 
@@ -119,31 +132,59 @@ impl OutputStateEntry {
 
 		renderer.resize(size)?;
 		self.current_size = size;
+
+		// `SurfaceRenderer::resize` completes the transition, because it
+		// destroys the frame the transition was blending from.  Stop the clock
+		// to match, otherwise this output would keep asking for frames.
+		self.transition.stop();
 		Ok(())
 	}
 
+	/// Whether this output is animating right now.
+	///
+	/// Answered from this output's own clock rather than by reading the
+	/// progress back out of the renderer's uniform block.  The uniform is a
+	/// mirror of the clock, not the source of truth for it: deriving liveness
+	/// from GPU state made the animation loop depend on a value that a resize
+	/// or a lost surface could change behind the caller's back.
 	pub fn is_transitioning(&self) -> bool {
-		if let Some(renderer) = &self.renderer {
-			!renderer.get_transition_progress().is_finished()
-		} else {
-			false
-		}
+		self.transition.is_active() && self.renderer.is_some()
 	}
 
 	pub fn start_transition(&mut self, image: &ImageWrapper) {
-		if let Some(renderer) = self.renderer.as_mut() {
-			renderer.set_next_image_size(image);
-			renderer.set_transition_progress(TransitionProgress::reset());
-			renderer.write_data();
-			renderer.set_next_image(image);
-		}
+		let Some(renderer) = self.renderer.as_mut() else {
+			// No renderer yet, so there is nothing to blend.  The clock stays
+			// idle; when a renderer is built it starts showing the new image
+			// directly.
+			return;
+		};
+
+		renderer.set_next_image_size(image);
+		renderer.set_transition_progress(TransitionProgress::reset());
+		renderer.write_data();
+		renderer.set_next_image(image);
+
+		self.transition.start();
 	}
 
-	pub fn set_transition_progress(&mut self, progress: TransitionProgress) {
+	/// Advance this output's clock one frame and push the result to its
+	/// renderer.
+	///
+	/// Returns `true` if the output is still animating afterwards, so the
+	/// caller can decide whether to arm another frame callback.
+	pub fn advance_transition(&mut self) -> bool {
+		let Some(progress) = self.transition.advance() else {
+			return false;
+		};
+
 		if let Some(renderer) = self.renderer.as_mut() {
 			renderer.set_transition_progress(progress);
 			renderer.write_data();
 		}
+
+		// The clock stops itself on the frame that completes the transition,
+		// so this correctly reports `false` on the final frame.
+		self.transition.is_active()
 	}
 }
 
@@ -237,41 +278,44 @@ impl OutputManager {
 		Ok(())
 	}
 
-	pub fn frame(
-		&mut self,
-		qh: &QueueHandle<SctkState>,
-		surface: &WlSurface,
-		progress: TransitionProgress,
-	) {
-		if let Some(output) = self.outputs.get_mut(surface) {
-			if output.is_transitioning() {
-				output.set_transition_progress(progress);
-			}
+	/// Service one frame callback for `surface`.
+	///
+	/// The output advances its own clock; no progress is passed in, so an
+	/// output cannot be advanced or cancelled by anything happening on another
+	/// output.
+	pub fn frame(&mut self, qh: &QueueHandle<SctkState>, surface: &WlSurface) {
+		let Some(output) = self.outputs.get_mut(surface) else {
+			return;
+		};
 
-			// Arm the callback *before* drawing and committing, the same order
-			// `start_transition` and `queue_render_all` use.
-			//
-			// A `wl_surface.frame` callback is only serviced when the
-			// compositor repaints the surface. Requesting one *after* the commit
-			// leaves it depending on a *further* repaint of a surface that has
-			// just received no damage; when the compositor does not schedule
-			// one, the animation loop dies after a single frame and the
-			// wallpaper appears frozen on the old image. Requesting first ties
-			// the callback to the commit below, which does carry damage
-			// (`render` presents a new swapchain image).
-			//
-			// The loop is driven by this renderer's own progress rather than
-			// `progress`, the wall clock shared by every output: a stale or
-			// finished global value must not be able to cancel an animation
-			// that this output is still running, and one output reaching the
-			// end of a transition must not stop the others.
-			if output.is_transitioning() {
-				surface.frame(qh, surface.clone());
-			}
+		let still_animating = if output.is_transitioning() {
+			output.advance_transition()
+		} else {
+			false
+		};
 
-			output.render();
-			output.commit();
+		// Arm the callback *before* drawing and committing, the same order
+		// `start_transition` and `queue_render_all` use.
+		//
+		// A `wl_surface.frame` callback is only serviced when the compositor
+		// repaints the surface. Requesting one *after* the commit leaves it
+		// depending on a *further* repaint of a surface that has just received
+		// no damage; when the compositor does not schedule one, the animation
+		// loop dies after a single frame and the wallpaper appears frozen on
+		// the old image. Requesting first ties the callback to the commit
+		// below, which does carry damage (`render` presents a new swapchain
+		// image).
+		//
+		// On the frame that completes the transition `advance_transition`
+		// returns `false`, so no further callback is armed. The final frame is
+		// still rendered and committed below, which is what leaves the target
+		// image on screen.
+		if still_animating {
+			surface.frame(qh, surface.clone());
 		}
+
+		output.render();
+		output.commit();
 	}
 
 	pub fn handle_new_output(

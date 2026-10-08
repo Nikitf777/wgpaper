@@ -3,7 +3,6 @@ use crate::{
 	app::{core::WallpaperState, output::OutputManager},
 	image_wrapper::ImageWrapper,
 	renderer::wgpu::wgpu_render_manager::RenderManager,
-	transition::ActiveTransition,
 };
 use anyhow::Context;
 use smithay_client_toolkit::{
@@ -72,7 +71,6 @@ impl SctkState {
 			wallpaper_state: WallpaperState {
 				shader: options.shader,
 				current_image: options.initial_image,
-				transition: ActiveTransition::default(),
 				scaling_mode: options.scaling_mode,
 			},
 		})
@@ -80,7 +78,6 @@ impl SctkState {
 
 	pub fn start_transition_all(&mut self, image: ImageWrapper) -> anyhow::Result<()> {
 		self.output_manager.start_transition(&self.qh, &image)?;
-		self.wallpaper_state.transition.start();
 		self.wallpaper_state.current_image = Some(image);
 		Ok(())
 	}
@@ -94,8 +91,9 @@ impl CompositorHandler for SctkState {
 		surface: &WlSurface,
 		_time: u32,
 	) {
-		let progress = self.wallpaper_state.transition.progress();
-		self.output_manager.frame(qh, surface, progress);
+		// Each output advances its own clock, so there is no global progress
+		// to distribute here.
+		self.output_manager.frame(qh, surface);
 	}
 
 	fn scale_factor_changed(

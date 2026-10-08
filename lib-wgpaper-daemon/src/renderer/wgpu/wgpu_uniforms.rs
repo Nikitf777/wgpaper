@@ -127,10 +127,6 @@ impl PerFrameUniformManager {
 		write_per_frame_data(&self.data, queue, &self.buffer);
 	}
 
-	pub fn transition_progress(&self) -> TransitionProgress {
-		self.data.transition_progress()
-	}
-
 	pub fn bind_group(&self) -> &BindGroup {
 		&self.bind_group
 	}
