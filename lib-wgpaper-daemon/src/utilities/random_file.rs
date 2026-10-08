@@ -175,11 +175,35 @@ impl RandomFileSelector {
 ///
 /// # Examples
 /// ```
-/// let file = select_random_file(
-///     &["/tmp/dir1", "/tmp/dir2"],
-///     &[".txt", ".log"],
-///     &["/path/to/excluded_file"]
-/// ).unwrap();
+/// use std::fs;
+///
+/// use lib_wgpaper_daemon::utilities::random_file::select_random_file;
+///
+/// // A scratch directory unique to this doctest's process.
+/// let dir = std::env::temp_dir().join(format!("wgpaper-doctest-{}", std::process::id()));
+/// fs::create_dir_all(&dir).unwrap();
+///
+/// fs::write(dir.join("keep.txt"), "").unwrap();
+/// fs::write(dir.join("skip.log"), "").unwrap();
+/// fs::write(dir.join("ignore.png"), "").unwrap();
+///
+/// // `skip.log` matches an extension but is excluded; `ignore.png` matches
+/// // neither, so `keep.txt` is the only possible answer.
+/// let excluded = dir.join("skip.log");
+/// let picked = select_random_file(&[&dir], &[".txt", ".log"], &[&excluded]).unwrap();
+/// assert_eq!(picked, dir.join("keep.txt"));
+///
+/// fs::remove_dir_all(&dir).unwrap();
+/// ```
+///
+/// Returns [`RandomFileError::NotADirectory`] if any of the directories do not
+/// exist:
+///
+/// ```
+/// use lib_wgpaper_daemon::utilities::random_file::{RandomFileError, select_random_file};
+///
+/// let err = select_random_file(&["/nonexistent/wgpaper"], &[".txt"], &[""]).unwrap_err();
+/// assert!(matches!(err, RandomFileError::NotADirectory { .. }));
 /// ```
 pub fn select_random_file<P, E, F>(
 	directories: &[P],
